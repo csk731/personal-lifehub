@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { 
   User, 
   Mail, 
@@ -23,10 +24,15 @@ import {
   EyeOff,
   Plus,
   Minus,
-  Clock
+  Clock,
+  AlertCircle,
+  Loader2
 } from 'lucide-react';
 import { getAuthHeaders } from '@/lib/utils';
 import { TIMEZONE_OPTIONS, getDetectedTimezone, setUserTimezone } from '@/utils/timezone';
+import { Button } from '../ui/Button';
+import { supabase } from '@/lib/supabase';
+import { useRouter } from 'next/navigation';
 
 interface Profile {
   id: string;
@@ -133,6 +139,11 @@ export function ProfileManager() {
   // Auto-save indicator
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+
+  const [newSkill, setNewSkill] = useState('');
+  const [newInterest, setNewInterest] = useState('');
+
+  const router = useRouter();
 
   useEffect(() => {
     fetchProfile();
@@ -291,8 +302,8 @@ export function ProfileManager() {
           setFieldErrors(newFieldErrors);
           setError(unmappedErrors.length > 0 ? unmappedErrors.join(' ') : 'Please fix the errors in the form.');
         } else {
-          throw new Error(errorData.error || 'Failed to update profile');
-        }
+        throw new Error(errorData.error || 'Failed to update profile');
+      }
         setSaving(false);
         return;
       }
@@ -324,7 +335,7 @@ export function ProfileManager() {
       }
       
       // Redirect to auth page after successful deletion
-      window.location.href = '/auth';
+      router.push('/auth');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete account');
       setSaving(false);
@@ -369,388 +380,599 @@ export function ProfileManager() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-blue-50 flex items-center justify-center">
+      <motion.div 
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        className="flex items-center justify-center min-h-[400px]"
+      >
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+          <motion.div 
+            animate={{ rotate: 360 }}
+            transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+            className="w-12 h-12 border-4 border-blue-200 border-t-blue-600 rounded-full mx-auto mb-4"
+          ></motion.div>
           <p className="text-gray-600">Loading profile...</p>
         </div>
-      </div>
+      </motion.div>
     );
   }
 
   if (!profile) {
     return (
-      <div className="min-h-screen bg-blue-50 flex items-center justify-center">
-        <div className="text-center">
+      <motion.div 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="text-center py-12"
+      >
           <div className="text-red-500 mb-4">
-            <p className="text-lg font-medium">Profile not found</p>
+          <AlertCircle className="w-12 h-12 mx-auto mb-2" />
+          <p className="text-lg font-medium">Failed to load profile</p>
           </div>
-          <button 
+        <motion.button 
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
             onClick={fetchProfile}
-            className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors"
+          className="px-6 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors"
           >
-            Retry
-          </button>
-        </div>
-      </div>
+          Try Again
+        </motion.button>
+      </motion.div>
     );
   }
 
+  const hasErrors = Object.keys(fieldErrors).length > 0;
+  const errorCount = Object.keys(fieldErrors).length;
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4 sm:p-6 md:p-8">
-      <div className="max-w-5xl mx-auto">
+    <motion.div 
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="p-4 md:p-6"
+    >
         {/* Header */}
-        <div className="bg-white rounded-xl shadow-lg p-6 mb-8 border border-gray-100">
-          <div className="flex flex-col md:flex-row items-center justify-between mb-6 gap-6">
-            <div className="flex items-center space-x-6">
-              <div className="relative">
-                <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center shadow-lg">
-                  {profile.avatar_url ? (
-                    <img 
-                      src={profile.avatar_url} 
-                      alt="Avatar" 
-                      className="w-20 h-20 rounded-full object-cover border-4 border-white"
-                    />
-                  ) : (
-                    <User className="w-10 h-10 text-white" />
-                  )}
-                </div>
-                <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-green-500 rounded-full border-2 border-white"></div>
-              </div>
-              <div>
-                <h1 className="text-3xl font-bold text-gray-900 mb-2">
-                  {profile.full_name || 'Complete Your Profile'}
-                </h1>
-                <p className="text-gray-600 mb-3 flex items-center">
-                  <Mail className="w-4 h-4 mr-2" />
-                  {profile.email}
-                </p>
-                <div className="flex items-center space-x-4">
-                  <div className="flex items-center space-x-2">
-                    <div className={`w-3 h-3 rounded-full ${getCompletionColor(profile.profile_completion_percentage)}`}></div>
-                    <span className="text-sm text-gray-600 font-medium">
-                      {profile.profile_completion_percentage}% Complete
-                    </span>
-                  </div>
-                  {hasUnsavedChanges && (
-                    <span className="text-sm text-orange-600 flex items-center">
-                      <div className="w-2 h-2 bg-orange-500 rounded-full mr-2 animate-pulse"></div>
-                      Unsaved changes
-                    </span>
-                  )}
-                  {lastSaved && !hasUnsavedChanges && (
-                    <span className="text-sm text-green-600 flex items-center">
-                      <CheckCircle className="w-4 h-4 mr-1" />
-                      Last saved {lastSaved.toLocaleTimeString()}
-                    </span>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
+      <motion.div 
+        initial={{ opacity: 0, x: -20 }}
+        animate={{ opacity: 1, x: 0 }}
+        className="mb-6"
+      >
+        <h1 className="text-2xl font-bold text-gray-900 mb-1">Profile Settings</h1>
+        <p className="text-gray-600 text-sm">Manage your personal information and preferences</p>
+      </motion.div>
 
-          {/* Progress Bar */}
-          <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
-            <div 
-              className={`h-3 rounded-full transition-all duration-500 ease-out ${
-                profile.profile_completion_percentage >= 80 ? 'bg-gradient-to-r from-green-500 to-emerald-500' :
-                profile.profile_completion_percentage >= 60 ? 'bg-gradient-to-r from-yellow-500 to-orange-500' : 
-                'bg-gradient-to-r from-red-500 to-pink-500'
-              }`}
-              style={{ width: `${profile.profile_completion_percentage}%` }}
-            ></div>
-          </div>
-        </div>
-
-        {/* Enhanced Error Display - More Prominent */}
+      {/* Error Summary */}
+      <AnimatePresence>
         {error && (
-          <div className="bg-red-50 border-2 border-red-400 text-red-700 px-6 py-4 rounded-lg mb-6 flex items-center space-x-3 shadow-lg">
-            <AlertTriangle className="w-6 h-6 flex-shrink-0 text-red-500" />
-            <div className="flex-1">
-              <p className="font-semibold text-red-800">Please fix the following errors:</p>
-              <p className="text-red-700 mt-1">{error}</p>
+          <motion.div 
+            initial={{ opacity: 0, y: -10, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -10, scale: 0.95 }}
+            className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl"
+          >
+            <div className="flex items-center space-x-3">
+              <AlertCircle className="w-4 h-4 text-red-600 flex-shrink-0" />
+              <div className="flex-1">
+                <p className="text-red-800 font-medium text-sm">{error}</p>
+                {hasErrors && (
+                  <p className="text-red-600 text-xs mt-1">
+                    {errorCount} field{errorCount !== 1 ? 's' : ''} need{errorCount !== 1 ? '' : 's'} attention
+                  </p>
+              )}
             </div>
-            <button onClick={() => setError(null)} className="text-red-500 hover:text-red-700 p-1">
-              <X className="w-5 h-5" />
-            </button>
           </div>
+          </motion.div>
         )}
+      </AnimatePresence>
 
-        {/* Error Summary - Show field errors prominently */}
-        {Object.keys(fieldErrors).length > 0 && (
-          <div className="bg-orange-50 border-2 border-orange-400 text-orange-700 px-6 py-4 rounded-lg mb-6 shadow-lg">
-            <div className="flex items-center space-x-3 mb-3">
-              <AlertTriangle className="w-6 h-6 flex-shrink-0 text-orange-500" />
-              <p className="font-semibold text-orange-800">
-                {Object.keys(fieldErrors).length} field{Object.keys(fieldErrors).length > 1 ? 's' : ''} need{Object.keys(fieldErrors).length > 1 ? '' : 's'} attention:
-              </p>
-            </div>
-            <ul className="list-disc list-inside space-y-1 text-orange-700">
-              {Object.entries(fieldErrors).map(([field, message]) => (
-                <li key={field} className="text-sm">
-                  <span className="font-medium capitalize">{field.replace('_', ' ')}:</span> {message}
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-
+      {/* Success Message */}
+      <AnimatePresence>
         {success && (
-          <div className="bg-green-50 border-l-4 border-green-400 text-green-700 px-6 py-4 rounded-lg mb-6 flex items-center space-x-3 shadow-sm">
-            <CheckCircle className="w-5 h-5 flex-shrink-0" />
-            <span className="flex-1">{success}</span>
-            <button onClick={() => setSuccess(null)} className="text-green-500 hover:text-green-700">
-              <X className="w-4 h-4" />
-            </button>
+          <motion.div 
+            initial={{ opacity: 0, y: -10, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -10, scale: 0.95 }}
+            className="mb-4 p-3 bg-green-50 border border-green-200 rounded-xl"
+          >
+            <div className="flex items-center space-x-3">
+              <CheckCircle className="w-4 h-4 text-green-600 flex-shrink-0" />
+              <p className="text-green-800 font-medium text-sm">{success}</p>
           </div>
+          </motion.div>
         )}
+      </AnimatePresence>
 
-        {/* Main Form */}
-        <form className="bg-white rounded-xl shadow-lg p-6 md:p-8 border border-gray-100" onSubmit={e => { e.preventDefault(); handleSave(); }}>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            {/* Left Column - Basic Info */}
             <div className="space-y-6">
-              <h3 className="text-xl font-semibold text-gray-900 border-b border-gray-200 pb-3 flex items-center">
-                <User className="w-5 h-5 mr-2 text-blue-600" />
+        {/* Basic Information */}
+        <motion.section 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+          className="bg-white/80 backdrop-blur-sm rounded-xl p-4 border border-white/20 shadow-lg"
+        >
+          <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+            <User className="w-4 h-4 mr-2 text-blue-600" />
                 Basic Information
-              </h3>
+          </h2>
               
-              <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-700" htmlFor="full_name">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <motion.div 
+              whileHover={{ scale: 1.01 }}
+              className="space-y-1"
+            >
+              <label className="block text-sm font-medium text-gray-800">
                   Full Name *
                 </label>
+              <div className="relative">
                 <input
-                  id="full_name"
                   type="text"
                   value={formData.full_name}
                   onChange={(e) => handleInputChange('full_name', e.target.value)}
-                  aria-invalid={!!fieldErrors.full_name}
-                  aria-describedby={fieldErrors.full_name ? 'full_name-error' : undefined}
-                  className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 ${
-                    fieldErrors.full_name 
-                      ? 'border-red-300 bg-red-50' 
-                      : 'border-gray-300 hover:border-gray-400'
+                  className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-gray-900 placeholder-gray-500 text-sm ${
+                    fieldErrors.full_name ? 'border-red-300 bg-red-50' : 'border-gray-300 bg-white'
                   }`}
                   placeholder="Enter your full name"
                 />
                 {fieldErrors.full_name && (
-                  <p className="text-sm text-red-600 flex items-center" id="full_name-error">
-                    <AlertTriangle className="w-4 h-4 mr-1" />
+                  <motion.p 
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="text-red-600 text-xs mt-1 flex items-center"
+                  >
+                    <AlertCircle className="w-3 h-3 mr-1" />
                     {fieldErrors.full_name}
-                  </p>
+                  </motion.p>
                 )}
               </div>
+            </motion.div>
 
-              <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-700">
-                  Email
+            <motion.div 
+              whileHover={{ scale: 1.01 }}
+              className="space-y-1"
+            >
+              <label className="block text-sm font-medium text-gray-800">
+                Email *
                 </label>
+              <div className="relative">
                 <input
                   type="email"
                   value={profile.email}
-                  disabled
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg bg-gray-50 text-gray-500 cursor-not-allowed"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-700" htmlFor="bio">
-                  Bio
-                </label>
-                <textarea
-                  id="bio"
-                  value={formData.bio}
-                  onChange={(e) => handleInputChange('bio', e.target.value)}
-                  rows={4}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-400 resize-none"
-                  placeholder="Tell us about yourself..."
-                />
-                <p className="text-xs text-gray-500">Share your story, interests, or what you're passionate about.</p>
-              </div>
-
-              <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-700" htmlFor="location">
-                  Location
-                </label>
-                <input
-                  id="location"
-                  type="text"
-                  value={formData.location}
-                  onChange={(e) => handleInputChange('location', e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-400"
-                  placeholder="City, Country"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-700" htmlFor="website">
-                  Website
-                </label>
-                <input
-                  id="website"
-                  type="url"
-                  value={formData.website}
-                  onChange={(e) => handleInputChange('website', e.target.value)}
-                  aria-invalid={!!fieldErrors.website}
-                  aria-describedby={fieldErrors.website ? 'website-error' : undefined}
-                  className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 ${
-                    fieldErrors.website 
-                      ? 'border-red-300 bg-red-50' 
-                      : 'border-gray-300 hover:border-gray-400'
+                  onChange={(e) => handleInputChange('email', e.target.value)}
+                  className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-gray-900 placeholder-gray-500 text-sm ${
+                    fieldErrors.email ? 'border-red-300 bg-red-50' : 'border-gray-300 bg-white'
                   }`}
-                  placeholder="https://yourwebsite.com"
+                  placeholder="Enter your email"
                 />
-                {fieldErrors.website && (
-                  <p className="text-sm text-red-600 flex items-center" id="website-error">
-                    <AlertTriangle className="w-4 h-4 mr-1" />
-                    {fieldErrors.website}
-                  </p>
+                {fieldErrors.email && (
+                  <motion.p 
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="text-red-600 text-xs mt-1 flex items-center"
+                  >
+                    <AlertCircle className="w-3 h-3 mr-1" />
+                    {fieldErrors.email}
+                  </motion.p>
                 )}
               </div>
+            </motion.div>
 
-              <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-700" htmlFor="phone">
-                  Phone
-                </label>
+            <motion.div 
+              whileHover={{ scale: 1.01 }}
+              className="space-y-1"
+            >
+              <label className="block text-sm font-medium text-gray-800">
+                Phone Number
+              </label>
+              <div className="relative">
                 <input
-                  id="phone"
                   type="tel"
                   value={formData.phone}
                   onChange={(e) => handleInputChange('phone', e.target.value)}
-                  aria-invalid={!!fieldErrors.phone}
-                  aria-describedby={fieldErrors.phone ? 'phone-error' : undefined}
-                  className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 ${
-                    fieldErrors.phone 
-                      ? 'border-red-300 bg-red-50' 
-                      : 'border-gray-300 hover:border-gray-400'
+                  className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-gray-900 placeholder-gray-500 text-sm ${
+                    fieldErrors.phone ? 'border-red-300 bg-red-50' : 'border-gray-300 bg-white'
                   }`}
-                  placeholder="+1 (555) 123-4567"
+                  placeholder="Enter your phone number"
                 />
                 {fieldErrors.phone && (
-                  <p className="text-sm text-red-600 flex items-center" id="phone-error">
-                    <AlertTriangle className="w-4 h-4 mr-1" />
+                  <motion.p 
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="text-red-600 text-xs mt-1 flex items-center"
+                  >
+                    <AlertCircle className="w-3 h-3 mr-1" />
                     {fieldErrors.phone}
-                  </p>
+                  </motion.p>
                 )}
               </div>
+            </motion.div>
 
-              <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-700" htmlFor="date_of_birth">
-                  Date of Birth
+            <motion.div 
+              whileHover={{ scale: 1.01 }}
+              className="space-y-1"
+            >
+              <label className="block text-sm font-medium text-gray-800">
+                Date of Birth
+              </label>
+              <input
+                type="date"
+                value={formData.date_of_birth}
+                onChange={(e) => handleInputChange('date_of_birth', e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-gray-900 bg-white text-sm"
+              />
+            </motion.div>
+          </div>
+        </motion.section>
+
+        {/* Additional Information */}
+        <motion.section 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+          className="bg-white/80 backdrop-blur-sm rounded-xl p-4 border border-white/20 shadow-lg"
+        >
+          <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+            <Edit3 className="w-4 h-4 mr-2 text-purple-600" />
+            Additional Information
+          </h2>
+          
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <motion.div 
+              whileHover={{ scale: 1.01 }}
+              className="space-y-1 lg:col-span-2"
+            >
+              <label className="block text-sm font-medium text-gray-800">
+                  Bio
                 </label>
-                <input
-                  id="date_of_birth"
-                  type="date"
-                  value={formData.date_of_birth}
-                  onChange={(e) => handleInputChange('date_of_birth', e.target.value)}
-                  aria-invalid={!!fieldErrors.date_of_birth}
-                  className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${fieldErrors.date_of_birth ? 'border-red-500' : 'border-gray-300'}`}
+                <textarea
+                  value={formData.bio}
+                  onChange={(e) => handleInputChange('bio', e.target.value)}
+                  rows={3}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 resize-none text-gray-900 placeholder-gray-500 bg-white text-sm"
+                  placeholder="Tell us about yourself..."
                 />
-                {fieldErrors.date_of_birth && (
-                  <p className="mt-1 text-xs text-red-600" id="date_of_birth-error">{fieldErrors.date_of_birth}</p>
-                )}
+            </motion.div>
+
+            <div className="space-y-4">
+              <motion.div 
+                whileHover={{ scale: 1.01 }}
+                className="space-y-1"
+              >
+                <label className="block text-sm font-medium text-gray-800">
+                  Location
+                </label>
+                <div className="relative">
+                  <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                <input
+                  type="text"
+                  value={formData.location}
+                  onChange={(e) => handleInputChange('location', e.target.value)}
+                    className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-gray-900 placeholder-gray-500 bg-white text-sm"
+                    placeholder="Enter your location"
+                />
               </div>
+              </motion.div>
+
+              <motion.div 
+                whileHover={{ scale: 1.01 }}
+                className="space-y-1"
+              >
+                <label className="block text-sm font-medium text-gray-800">
+                  Website
+                </label>
+                <div className="relative">
+                  <Globe className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                <input
+                  type="url"
+                  value={formData.website}
+                  onChange={(e) => handleInputChange('website', e.target.value)}
+                    className={`w-full pl-8 pr-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-gray-900 placeholder-gray-500 text-sm ${
+                      fieldErrors.website ? 'border-red-300 bg-red-50' : 'border-gray-300 bg-white'
+                    }`}
+                    placeholder="https://your-website.com"
+                />
+                  {fieldErrors.website && (
+                    <motion.p 
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="text-red-600 text-xs mt-1 flex items-center"
+                    >
+                      <AlertCircle className="w-3 h-3 mr-1" />
+                      {fieldErrors.website}
+                    </motion.p>
+                  )}
+              </div>
+              </motion.div>
             </div>
+          </div>
+        </motion.section>
 
-            {/* Right Column - Professional & Preferences */}
-            <div className="space-y-6">
-              <h3 className="text-lg font-semibold text-gray-900 border-b border-gray-200 pb-2">
-                Professional & Preferences
-              </h3>
+        {/* Skills & Interests */}
+        <motion.section 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          className="bg-white/80 backdrop-blur-sm rounded-xl p-4 border border-white/20 shadow-lg"
+        >
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Skills & Interests</h2>
+          
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Skills */}
+            <motion.div 
+              whileHover={{ scale: 1.01 }}
+              className="space-y-3"
+            >
+              <label className="block text-sm font-medium text-gray-800">
+                Skills
+                </label>
+              <div className="space-y-2">
+                <div className="flex space-x-2">
+                <input
+                    type="text"
+                    value={newSkill}
+                    onChange={(e) => setNewSkill(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && addArrayItem('skills', newSkill)}
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-gray-900 placeholder-gray-500 bg-white text-sm"
+                    placeholder="Add a skill..."
+                  />
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => addArrayItem('skills', newSkill)}
+                    className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
+                  >
+                    Add
+                  </motion.button>
+              </div>
+                <div className="flex flex-wrap gap-2">
+                  <AnimatePresence>
+                    {(formData.skills || []).map((skill, index) => (
+                      <motion.span
+                        key={index}
+                        initial={{ opacity: 0, scale: 0.8 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.8 }}
+                        className="inline-flex items-center px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs"
+                      >
+                        {skill}
+                        <motion.button
+                          whileHover={{ scale: 1.2 }}
+                          whileTap={{ scale: 0.8 }}
+                          onClick={() => removeArrayItem('skills', index)}
+                          className="ml-1 text-blue-600 hover:text-blue-800"
+                        >
+                          <X className="w-3 h-3" />
+                        </motion.button>
+                      </motion.span>
+                    ))}
+                  </AnimatePresence>
+                </div>
+              </div>
+            </motion.div>
 
+            {/* Interests */}
+            <motion.div 
+              whileHover={{ scale: 1.01 }}
+              className="space-y-3"
+            >
+              <label className="block text-sm font-medium text-gray-800">
+                Interests
+                </label>
+              <div className="space-y-2">
+                <div className="flex space-x-2">
+                <input
+                    type="text"
+                    value={newInterest}
+                    onChange={(e) => setNewInterest(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && addArrayItem('interests', newInterest)}
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-gray-900 placeholder-gray-500 bg-white text-sm"
+                    placeholder="Add an interest..."
+                  />
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => addArrayItem('interests', newInterest)}
+                    className="px-3 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-sm"
+                  >
+                    Add
+                  </motion.button>
+              </div>
+                <div className="flex flex-wrap gap-2">
+                  <AnimatePresence>
+                    {(formData.interests || []).map((interest, index) => (
+                      <motion.span
+                        key={index}
+                        initial={{ opacity: 0, scale: 0.8 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.8 }}
+                        className="inline-flex items-center px-2 py-1 bg-purple-100 text-purple-800 rounded-full text-xs"
+                      >
+                        {interest}
+                        <motion.button
+                          whileHover={{ scale: 1.2 }}
+                          whileTap={{ scale: 0.8 }}
+                          onClick={() => removeArrayItem('interests', index)}
+                          className="ml-1 text-purple-600 hover:text-purple-800"
+                        >
+                          <X className="w-3 h-3" />
+                        </motion.button>
+                      </motion.span>
+                    ))}
+                  </AnimatePresence>
+            </div>
+              </div>
+            </motion.div>
+          </div>
+        </motion.section>
+
+        {/* Professional Information & Social Links */}
+        <motion.section 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.4 }}
+          className="bg-white/80 backdrop-blur-sm rounded-xl p-4 border border-white/20 shadow-lg"
+        >
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Professional Information */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                <Briefcase className="w-4 h-4 mr-2 text-green-600" />
+                Professional Information
+              </h2>
+              
+              <div className="space-y-3">
+                <motion.div 
+                  whileHover={{ scale: 1.01 }}
+                  className="space-y-1"
+                >
+                  <label className="block text-sm font-medium text-gray-800">
                   Occupation
                 </label>
                 <input
                   type="text"
                   value={formData.occupation}
                   onChange={(e) => handleInputChange('occupation', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
-                  placeholder="Software Engineer"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-gray-900 placeholder-gray-500 bg-white text-sm"
+                    placeholder="Enter your job title"
                 />
-              </div>
+                </motion.div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <motion.div 
+                  whileHover={{ scale: 1.01 }}
+                  className="space-y-1"
+                >
+                  <label className="block text-sm font-medium text-gray-800">
                   Company
                 </label>
                 <input
                   type="text"
                   value={formData.company}
                   onChange={(e) => handleInputChange('company', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
-                  placeholder="Company Name"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-gray-900 placeholder-gray-500 bg-white text-sm"
+                    placeholder="Enter your company name"
                 />
-              </div>
+                </motion.div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <motion.div 
+                  whileHover={{ scale: 1.01 }}
+                  className="space-y-1"
+                >
+                  <label className="block text-sm font-medium text-gray-800">
                   Education
                 </label>
                 <input
                   type="text"
                   value={formData.education}
                   onChange={(e) => handleInputChange('education', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
-                  placeholder="University, Degree"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-gray-900 placeholder-gray-500 bg-white text-sm"
+                    placeholder="Enter your education background"
                 />
+                </motion.div>
+              </div>
               </div>
 
+            {/* Social Links */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  <div className="flex items-center space-x-2">
-                    <Clock className="w-4 h-4" />
-                    <span>Timezone</span>
-                  </div>
+              <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                <Globe className="w-4 h-4 mr-2 text-indigo-600" />
+                Social Links
+              </h2>
+              
+              <div className="space-y-3">
+                <motion.div 
+                  whileHover={{ scale: 1.01 }}
+                  className="space-y-1"
+                >
+                  <label className="block text-sm font-medium text-gray-800">
+                    Twitter
                 </label>
-                <div className="space-y-2">
-                  <select
-                    value={formData.timezone}
-                    onChange={(e) => {
-                      handleInputChange('timezone', e.target.value);
-                      setUserTimezone(e.target.value);
-                    }}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
-                  >
-                    {TIMEZONE_OPTIONS.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    onClick={(e) => {
-                      const detected = getDetectedTimezone();
-                      handleInputChange('timezone', detected);
-                      setUserTimezone(detected);
-                    }}
-                    className="text-sm text-blue-600 hover:text-blue-800 flex items-center space-x-1"
-                  >
-                    <Clock className="w-3 h-3" />
-                    <span>Auto-detect from system</span>
-                  </button>
-                  <p className="text-xs text-gray-500">
-                    Current: {new Date().toLocaleString('en-US', { 
-                      timeZone: formData.timezone,
-                      timeZoneName: 'short',
-                      month: 'short',
-                      day: 'numeric',
-                      hour: '2-digit',
-                      minute: '2-digit'
-                    })}
-                  </p>
+                  <input
+                    type="url"
+                    value={formData.social_links.twitter}
+                    onChange={(e) => handleNestedChange('social_links', 'twitter', e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-gray-900 placeholder-gray-500 bg-white text-sm"
+                    placeholder="https://twitter.com/username"
+                  />
+                </motion.div>
+
+                <motion.div 
+                  whileHover={{ scale: 1.01 }}
+                  className="space-y-1"
+                >
+                  <label className="block text-sm font-medium text-gray-800">
+                    LinkedIn
+                  </label>
+                  <input
+                    type="url"
+                    value={formData.social_links.linkedin}
+                    onChange={(e) => handleNestedChange('social_links', 'linkedin', e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-gray-900 placeholder-gray-500 bg-white text-sm"
+                    placeholder="https://linkedin.com/in/username"
+                  />
+                </motion.div>
+
+                <motion.div 
+                  whileHover={{ scale: 1.01 }}
+                  className="space-y-1"
+                >
+                  <label className="block text-sm font-medium text-gray-800">
+                    GitHub
+                  </label>
+                  <input
+                    type="url"
+                    value={formData.social_links.github}
+                    onChange={(e) => handleNestedChange('social_links', 'github', e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-gray-900 placeholder-gray-500 bg-white text-sm"
+                    placeholder="https://github.com/username"
+                  />
+                </motion.div>
+
+                <motion.div 
+                  whileHover={{ scale: 1.01 }}
+                  className="space-y-1"
+                >
+                  <label className="block text-sm font-medium text-gray-800">
+                    Instagram
+                  </label>
+                  <input
+                    type="url"
+                    value={formData.social_links.instagram}
+                    onChange={(e) => handleNestedChange('social_links', 'instagram', e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-gray-900 placeholder-gray-500 bg-white text-sm"
+                    placeholder="https://instagram.com/username"
+                  />
+                </motion.div>
                 </div>
               </div>
+          </div>
+        </motion.section>
 
+        {/* Preferences & Privacy Settings */}
+        <motion.section 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.5 }}
+          className="bg-white/80 backdrop-blur-sm rounded-xl p-4 border border-white/20 shadow-lg"
+        >
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Preferences */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                <Settings className="w-4 h-4 mr-2 text-orange-600" />
+                Preferences
+              </h2>
+              
+              <div className="space-y-4">
+                {/* Appearance */}
+                <div className="space-y-2">
+                  <h3 className="text-base font-medium text-gray-900">Appearance</h3>
+                  
+                  <div className="space-y-2">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-800 mb-1">
                   Theme
                 </label>
                 <select
                   value={formData.theme}
                   onChange={(e) => handleInputChange('theme', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-gray-900 bg-white text-sm"
                 >
                   <option value="light">Light</option>
                   <option value="dark">Dark</option>
@@ -759,313 +981,214 @@ export function ProfileManager() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                      <label className="block text-sm font-medium text-gray-800 mb-1">
                   Language
                 </label>
                 <select
                   value={formData.language}
                   onChange={(e) => handleInputChange('language', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-gray-900 bg-white text-sm"
                 >
                   <option value="en">English</option>
                   <option value="es">Spanish</option>
                   <option value="fr">French</option>
                   <option value="de">German</option>
-                  <option value="it">Italian</option>
-                  <option value="pt">Portuguese</option>
-                  <option value="ru">Russian</option>
-                  <option value="zh">Chinese</option>
-                  <option value="ja">Japanese</option>
-                  <option value="ko">Korean</option>
                 </select>
-              </div>
-            </div>
           </div>
 
-          {/* Skills & Interests - Fixed Removal Buttons */}
-          <div className="mt-8 space-y-6">
-            <h3 className="text-xl font-semibold text-gray-900 border-b border-gray-200 pb-3 flex items-center">
-              <GraduationCap className="w-5 h-5 mr-2 text-blue-600" />
-              Skills & Interests
-            </h3>
-            
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              <div className="space-y-3">
-                <label className="block text-sm font-medium text-gray-700">
-                  Skills
+              <div>
+                      <label className="block text-sm font-medium text-gray-800 mb-1">
+                        Timezone
                 </label>
-                <div className="space-y-3">
-                  <div className="flex space-x-2">
-                    <input
-                      type="text"
-                      placeholder="Add a skill"
-                      className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-400"
-                      onKeyPress={(e) => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault();
-                          const target = e.target as HTMLInputElement;
-                          if (target.value.trim()) {
-                            addArrayItem('skills', target.value);
-                            target.value = '';
-                          }
-                        }
-                      }}
-                    />
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        const input = e.currentTarget.previousElementSibling as HTMLInputElement;
-                        if (input.value.trim()) {
-                          addArrayItem('skills', input.value);
-                          input.value = '';
-                        }
-                      }}
-                      className="px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center"
-                    >
-                      <Plus className="w-4 h-4" />
-                    </button>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {formData.skills.map((skill, index) => (
-                      <span
-                        key={index}
-                        className="inline-flex items-center space-x-2 px-3 py-2 bg-blue-100 text-blue-800 rounded-full text-sm font-medium"
+                      <select
+                        value={formData.timezone}
+                        onChange={(e) => handleInputChange('timezone', e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-gray-900 bg-white text-sm"
                       >
-                        <span>{skill}</span>
-                        <button
-                          type="button"
-                          onClick={() => removeArrayItem('skills', index)}
-                          className="text-blue-600 hover:text-blue-800 transition-colors p-1"
-                        >
-                          <X className="w-3 h-3" />
-                        </button>
-                      </span>
-                    ))}
+                        {TIMEZONE_OPTIONS.map((tz) => (
+                          <option key={tz.value} value={tz.value}>
+                            {tz.label}
+                          </option>
+                        ))}
+                      </select>
                   </div>
                 </div>
               </div>
 
-              <div className="space-y-3">
-                <label className="block text-sm font-medium text-gray-700">
-                  Interests
-                </label>
-                <div className="space-y-3">
-                  <div className="flex space-x-2">
+                {/* Notifications */}
+                <div className="space-y-2">
+                  <h3 className="text-base font-medium text-gray-900">Notifications</h3>
+                  
+                  <div className="space-y-2">
+                    <label className="flex items-center space-x-3 cursor-pointer">
                     <input
-                      type="text"
-                      placeholder="Add an interest"
-                      className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-400"
-                      onKeyPress={(e) => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault();
-                          const target = e.target as HTMLInputElement;
-                          if (target.value.trim()) {
-                            addArrayItem('interests', target.value);
-                            target.value = '';
-                          }
-                        }
-                      }}
-                    />
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        const input = e.currentTarget.previousElementSibling as HTMLInputElement;
-                        if (input.value.trim()) {
-                          addArrayItem('interests', input.value);
-                          input.value = '';
-                        }
-                      }}
-                      className="px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center"
-                    >
-                      <Plus className="w-4 h-4" />
-                    </button>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {formData.interests.map((interest, index) => (
-                      <span
-                        key={index}
-                        className="inline-flex items-center space-x-2 px-3 py-2 bg-green-100 text-green-800 rounded-full text-sm font-medium"
-                      >
-                        <span>{interest}</span>
-                        <button
-                          type="button"
-                          onClick={() => removeArrayItem('interests', index)}
-                          className="text-green-600 hover:text-green-800 transition-colors p-1"
-                        >
-                          <X className="w-3 h-3" />
-                        </button>
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
+                        type="checkbox"
+                        checked={formData.notification_preferences.email}
+                        onChange={(e) => handleNestedChange('notification_preferences', 'email', e.target.checked)}
+                        className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                      />
+                      <span className="text-gray-800 text-sm">Email notifications</span>
+                    </label>
 
-          {/* Notification Preferences */}
-          <div className="mt-8 space-y-6">
-            <h3 className="text-lg font-semibold text-gray-900 border-b border-gray-200 pb-2">
-              Notification Preferences
-            </h3>
-            <div className="space-y-3">
-              {Object.entries(formData.notification_preferences).map(([key, value]) => (
-                <div key={key} className="flex items-center justify-between">
-                  <span className="text-sm text-gray-700 capitalize">
-                    {key.replace('_', ' ')} notifications
-                  </span>
-                  <label className="relative inline-flex items-center cursor-pointer">
+                    <label className="flex items-center space-x-3 cursor-pointer">
                     <input
                       type="checkbox"
-                      checked={value}
-                      onChange={(e) => handleNestedChange('notification_preferences', key, e.target.checked)}
-                      className="sr-only peer"
+                        checked={formData.notification_preferences.push}
+                        onChange={(e) => handleNestedChange('notification_preferences', 'push', e.target.checked)}
+                        className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
                     />
-                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600 disabled:opacity-50"></div>
+                      <span className="text-gray-800 text-sm">Push notifications</span>
+                    </label>
+
+                    <label className="flex items-center space-x-3 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={formData.notification_preferences.sms}
+                        onChange={(e) => handleNestedChange('notification_preferences', 'sms', e.target.checked)}
+                        className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                      />
+                      <span className="text-gray-800 text-sm">SMS notifications</span>
                   </label>
                 </div>
-              ))}
+                </div>
             </div>
           </div>
 
           {/* Privacy Settings */}
-          <div className="mt-8 space-y-6">
-            <h3 className="text-lg font-semibold text-gray-900 border-b border-gray-200 pb-2">
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                <Eye className="w-4 h-4 mr-2 text-teal-600" />
               Privacy Settings
-            </h3>
+              </h2>
+              
             <div className="space-y-3">
-              {Object.entries(formData.privacy_settings).map(([key, value]) => (
-                <div key={key} className="flex items-center justify-between">
-                  <span className="text-sm text-gray-700 capitalize">
-                    {key.replace('_', ' ')}
-                  </span>
-                  <label className="relative inline-flex items-center cursor-pointer">
+                <label className="flex items-center space-x-3 cursor-pointer">
                     <input
                       type="checkbox"
-                      checked={value}
-                      onChange={(e) => handleNestedChange('privacy_settings', key, e.target.checked)}
-                      className="sr-only peer"
-                    />
-                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600 disabled:opacity-50"></div>
-                  </label>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Social Links */}
-          <div className="mt-8 space-y-6">
-            <h3 className="text-lg font-semibold text-gray-900 border-b border-gray-200 pb-2">
-              Social Links
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {Object.entries(formData.social_links).map(([platform, url]) => (
-                <div key={platform}>
-                  <label className="block text-sm font-medium text-gray-700 mb-2 capitalize">
-                    {platform}
-                  </label>
-                  <input
-                    type="url"
-                    value={url}
-                    onChange={(e) => handleNestedChange('social_links', platform, e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
-                    placeholder={`https://${platform}.com/username`}
+                    checked={formData.privacy_settings.profile_visible}
+                    onChange={(e) => handleNestedChange('privacy_settings', 'profile_visible', e.target.checked)}
+                    className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
                   />
+                  <span className="text-gray-800 text-sm">Make my profile visible to other users</span>
+                  </label>
+
+                <label className="flex items-center space-x-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={formData.privacy_settings.show_email}
+                    onChange={(e) => handleNestedChange('privacy_settings', 'show_email', e.target.checked)}
+                    className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                  />
+                  <span className="text-gray-800 text-sm">Show my email address on my profile</span>
+                  </label>
+
+                <label className="flex items-center space-x-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={formData.privacy_settings.show_phone}
+                    onChange={(e) => handleNestedChange('privacy_settings', 'show_phone', e.target.checked)}
+                    className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                  />
+                  <span className="text-gray-800 text-sm">Show my phone number on my profile</span>
+                </label>
                 </div>
-              ))}
             </div>
           </div>
+        </motion.section>
 
-          {/* Enhanced Save Button with Error Count */}
-          <div className="flex justify-between items-center mt-8 pt-6 border-t border-gray-200">
-            <div className="flex items-center space-x-4">
-              {Object.keys(fieldErrors).length > 0 && (
-                <div className="flex items-center space-x-2 text-orange-600">
-                  <AlertTriangle className="w-4 h-4" />
-                  <span className="text-sm font-medium">
-                    {Object.keys(fieldErrors).length} error{Object.keys(fieldErrors).length > 1 ? 's' : ''} to fix
-                  </span>
-                </div>
-              )}
-              {hasUnsavedChanges && (
-                <div className="flex items-center space-x-2 text-blue-600">
-                  <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
-                  <span className="text-sm">Unsaved changes</span>
-                </div>
-              )}
-            </div>
-            <button
-              type="submit"
-              disabled={saving || Object.keys(fieldErrors).length > 0}
-              className="flex items-center space-x-2 px-8 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
-            >
-              {saving ? (
-                <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                  <span>Saving...</span>
-                </>
-              ) : (
-                <>
-                  <Save className="w-4 h-4" />
-                  <span>
-                    {Object.keys(fieldErrors).length > 0 
-                      ? `Fix ${Object.keys(fieldErrors).length} Error${Object.keys(fieldErrors).length > 1 ? 's' : ''}` 
-                      : 'Save Changes'
-                    }
-                  </span>
-                </>
-              )}
-            </button>
-          </div>
-        </form>
+        {/* Actions */}
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.6 }}
+          className="flex flex-col sm:flex-row gap-3 pt-4 border-t border-gray-200"
+        >
+          <motion.button
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={handleSave}
+            disabled={saving || hasErrors}
+            className={`flex items-center justify-center space-x-2 px-6 py-2 rounded-lg font-semibold transition-all duration-300 text-sm ${
+              saving || hasErrors
+                ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                : 'bg-gradient-to-r from-blue-600 to-purple-600 text-white hover:shadow-lg hover:shadow-blue-500/25'
+            }`}
+          >
+            {saving ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span>Saving...</span>
+              </>
+            ) : (
+              <>
+                <Save className="w-4 h-4" />
+                <span>
+                  Save Changes
+                  {hasErrors && ` (${errorCount} error${errorCount !== 1 ? 's' : ''})`}
+                </span>
+              </>
+            )}
+          </motion.button>
 
-        {/* Delete Account Section */}
-        <div className="mt-8 bg-red-50 border border-red-200 rounded-lg p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-lg font-medium text-red-900">Delete Account</h3>
-              <p className="text-sm text-red-700 mt-1">
-                This action cannot be undone. All your data will be permanently deleted.
-              </p>
-            </div>
-            <button
+          <motion.button
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
               onClick={() => setShowDeleteConfirm(true)}
-              className="px-4 py-2 bg-red-500 text-white rounded-md hover:bg-red-600 transition-colors"
+            className="flex items-center justify-center space-x-2 px-6 py-2 border border-red-300 text-red-600 rounded-lg font-semibold hover:bg-red-50 transition-all duration-300 text-sm"
             >
               <Trash2 className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
+            <span>Delete Account</span>
+          </motion.button>
+        </motion.div>
       </div>
 
       {/* Delete Confirmation Modal */}
+      <AnimatePresence>
       {showDeleteConfirm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50"
+          >
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              transition={{ type: "spring", damping: 25, stiffness: 300 }}
+              className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6"
+            >
             <div className="text-center">
-              <AlertTriangle className="w-12 h-12 text-red-500 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">Delete Account</h3>
-              <p className="text-sm text-gray-600 mb-6">
-                Are you sure you want to delete your account? This action cannot be undone and all your data will be permanently deleted.
+                <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Trash2 className="w-8 h-8 text-red-600" />
+                </div>
+                <h3 className="text-xl font-bold text-gray-900 mb-2">Delete Account</h3>
+                <p className="text-gray-600 mb-6">
+                  Are you sure you want to delete your account? This action cannot be undone and all your data will be permanently removed.
               </p>
-              <div className="flex space-x-3">
-                <button
+                <div className="flex space-x-4">
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
                   onClick={() => setShowDeleteConfirm(false)}
-                  className="flex-1 px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600 transition-colors"
+                    className="flex-1 px-4 py-2 border border-gray-300 text-gray-800 rounded-xl hover:bg-gray-50 transition-colors"
                 >
                   Cancel
-                </button>
-                <button
+                  </motion.button>
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
                   onClick={handleDeleteAccount}
-                  disabled={saving}
-                  className="flex-1 px-4 py-2 bg-red-500 text-white rounded-md hover:bg-red-600 disabled:opacity-50 transition-colors"
+                    className="flex-1 px-4 py-2 bg-red-600 text-white rounded-xl hover:bg-red-700 transition-colors"
                 >
-                  {saving ? 'Deleting...' : 'Delete Account'}
-                </button>
+                    Delete
+                  </motion.button>
               </div>
             </div>
-          </div>
-        </div>
+            </motion.div>
+          </motion.div>
       )}
-    </div>
+      </AnimatePresence>
+    </motion.div>
   );
 } 

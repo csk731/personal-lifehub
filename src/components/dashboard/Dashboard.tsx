@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { 
   Plus, 
   Grid3X3, 
@@ -18,7 +18,19 @@ import {
   TrendingUp,
   Calendar,
   Clock,
-  HelpCircle
+  HelpCircle,
+  Heart,
+  DollarSign,
+  Target,
+  Zap,
+  Loader2,
+  ExternalLink,
+  ArrowRight,
+  Smile,
+  FileText,
+  CheckSquare,
+  Cloud,
+  Book
 } from 'lucide-react';
 import { WidgetWrapper } from '../widgets/WidgetWrapper';
 import { TaskWidget } from '../widgets/TaskWidget';
@@ -27,14 +39,13 @@ import { FinanceWidget } from '../widgets/FinanceWidget';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 import { getAuthHeaders, widgetUtils } from '@/lib/utils';
-import { ProfileManager } from '../profile/ProfileManager';
 import Image from 'next/image';
 import { TopBar } from './TopBar';
 import { useAuth } from '@/hooks/useAuth';
 import { startOfDay, endOfDay, isToday } from 'date-fns';
-import { AddTaskModal } from './AddTaskModal';
-import { AddMoodModal } from './AddMoodModal';
-import { AddFinanceModal } from './AddFinanceModal';
+import { motion, AnimatePresence } from 'framer-motion';
+import { OnboardingModal } from './OnboardingModal';
+import { WidgetPickerModal } from './WidgetPickerModal';
 
 interface UserWidget {
   id: string;
@@ -72,6 +83,21 @@ interface Notification {
   message: string;
   duration?: number;
   title?: string;
+}
+
+interface ServiceTile {
+  id: string;
+  name: string;
+  displayName: string;
+  description: string;
+  icon: string;
+  category: string;
+  color: string;
+  gradient: string;
+  isEnabled: boolean;
+  data?: any;
+  loading?: boolean;
+  route: string;
 }
 
 const widgetComponents = {
@@ -128,6 +154,7 @@ export function Dashboard() {
   const [error, setError] = useState<string | null>(null);
   const [showWidgetPicker, setShowWidgetPicker] = useState(false);
   const [addingWidget, setAddingWidget] = useState<string | null>(null);
+  const [modalLoading, setModalLoading] = useState(false);
   const [user, setUser] = useState<any>(null);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -143,16 +170,17 @@ export function Dashboard() {
   });
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [profile, setProfile] = useState<any>(null);
-  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(false);
   const router = useRouter();
   const { user: authUser } = useAuth();
+  const [hoveredTile, setHoveredTile] = useState<string | null>(null);
   const [todaysTasks, setTodaysTasks] = useState<any[]>([]);
   const [todaysMood, setTodaysMood] = useState<any | null>(null);
   const [todaysFinance, setTodaysFinance] = useState<any[]>([]);
-  const [showQuickAddTask, setShowQuickAddTask] = useState(false);
-  const [showQuickLogMood, setShowQuickLogMood] = useState(false);
-  const [showQuickAddFinance, setShowQuickAddFinance] = useState(false);
-  const [savingQuick, setSavingQuick] = useState(false);
+  const dataLoadedRef = useRef(false);
+
+  // Service tiles configuration - will be populated dynamically
+  const [serviceTiles, setServiceTiles] = useState<ServiceTile[]>([]);
 
   // Helper functions for Smart Dashboard Insights
   const getTimeBasedGreeting = () => {
@@ -194,7 +222,7 @@ export function Dashboard() {
     // Finance-based recommendations (only if finance widget is enabled)
     if (isFinanceWidgetEnabled()) {
       if (enabledStats.totalFinanceEntries === 0) {
-        recommendations.push('Start tracking your finances to better understand your spending habits');
+        recommendations.push('Start tracking your finances to understand your spending patterns');
       } else if (enabledStats.totalBalance < 0) {
         recommendations.push('Consider reviewing your expenses to improve your financial health');
       } else if (enabledStats.totalBalance > 1000) {
@@ -202,70 +230,61 @@ export function Dashboard() {
       }
     }
     
-    // General recommendations
-    if (recommendations.length === 0) {
-      recommendations.push('You\'re doing great! Keep up the consistent tracking');
-    }
-    
     return recommendations.slice(0, 3); // Return top 3 recommendations
   };
 
-  useEffect(() => {
-    checkUser();
-    fetchProfile();
-  }, []);
-
-  useEffect(() => {
-    if (widgets.length > 0) {
-      calculateStats();
-    }
-  }, [widgets]);
-
-  useEffect(() => {
-    if (!user) return;
-    const fetchTodaysData = async () => {
+  const fetchTodaysData = async () => {
+    try {
       const headers = await getAuthHeaders();
-      // Tasks
-      const tasksRes = await fetch('/api/tasks', { headers });
-      if (tasksRes.ok) {
-        const data = await tasksRes.json();
-        const today = new Date();
-        setTodaysTasks(
-          (data.tasks || []).filter((t: any) => {
-            if (!t.due_date || t.status === 'completed') return false;
-            const due = new Date(t.due_date);
-            return isDueToday(t.due_date);
-          })
-        );
+      
+      // Fetch today's tasks
+      const tasksResponse = await fetch('/api/tasks', { headers });
+      if (tasksResponse.ok) {
+        const tasksData = await tasksResponse.json();
+        const tasks = tasksData.tasks || tasksData || [];
+        const today = new Date().toISOString().split('T')[0];
+        const todaysTasks = Array.isArray(tasks) ? tasks.filter((task: any) => 
+          task.due_date === today && !task.completed
+        ) : [];
+        setTodaysTasks(todaysTasks);
       }
-      // Mood
-      const moodRes = await fetch('/api/mood', { headers });
-      if (moodRes.ok) {
-        const data = await moodRes.json();
-        const todayStr = new Date().toISOString().split('T')[0];
-        setTodaysMood((data.entries || []).find((e: any) => e.date === todayStr) || null);
+      
+      // Fetch today's mood
+      const moodResponse = await fetch('/api/mood', { headers });
+      if (moodResponse.ok) {
+        const moodData = await moodResponse.json();
+        const entries = moodData.entries || moodData || [];
+        const today = new Date().toISOString().split('T')[0];
+        const todaysMood = Array.isArray(entries) ? entries.find((entry: any) => entry.date === today) : null;
+        setTodaysMood(todaysMood || null);
       }
-      // Finance
-      const financeRes = await fetch('/api/finance', { headers });
-      if (financeRes.ok) {
-        const data = await financeRes.json();
-        const todayStr = new Date().toISOString().split('T')[0];
-        setTodaysFinance((data.entries || []).filter((e: any) => e.date && e.date.startsWith(todayStr)));
+      
+      // Fetch today's finance entries
+      const financeResponse = await fetch('/api/finance', { headers });
+      if (financeResponse.ok) {
+        const financeData = await financeResponse.json();
+        const entries = financeData.entries || financeData || [];
+        const today = new Date().toISOString().split('T')[0];
+        const todaysFinance = Array.isArray(entries) ? entries.filter((entry: any) => 
+          entry.date === today
+        ) : [];
+        setTodaysFinance(todaysFinance);
       }
-    };
-    fetchTodaysData();
-  }, [user, widgets.length]);
+    } catch (error) {
+      console.error('Error fetching today\'s data:', error);
+      if (error instanceof Error && error.message.includes('auth')) {
+        router.push('/auth');
+      }
+    }
+  };
 
   const addNotification = (notification: Omit<Notification, 'id'>) => {
-    const id = Math.random().toString(36).substring(2);
+    const id = Math.random().toString(36).substr(2, 9);
     const newNotification = { ...notification, id };
     setNotifications(prev => [...prev, newNotification]);
 
-    // Auto-remove notification after duration
     if (notification.duration !== 0) {
-      setTimeout(() => {
-        removeNotification(id);
-      }, notification.duration || 5000);
+      setTimeout(() => removeNotification(id), notification.duration || 5000);
     }
   };
 
@@ -276,15 +295,16 @@ export function Dashboard() {
   const checkUser = async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        router.push('/auth');
-        return;
-      }
+      if (user) {
       setUser(user);
-      await Promise.all([fetchUserWidgets(), fetchAvailableWidgets()]);
-    } catch (err) {
-      setError('Failed to check user authentication');
-      setLoading(false);
+        // Don't call fetchProfile here - it will be called in the second useEffect
+      } else {
+        console.log('No user found, redirecting to auth');
+        setUser(null);
+      }
+    } catch (error) {
+      console.error('Error checking user:', error);
+      setUser(null);
     }
   };
 
@@ -296,31 +316,139 @@ export function Dashboard() {
   const fetchUserWidgets = async () => {
     try {
       const headers = await getAuthHeaders();
-      const response = await fetch('/api/widgets', {
-        headers
-      });
+      const response = await fetch('/api/widgets', { headers });
+      
       if (!response.ok) {
-        throw new Error('Failed to fetch user widgets');
+        throw new Error('Failed to fetch widgets');
       }
+      
       const data = await response.json();
-      setWidgets(data.widgets || []);
+      
+      // Handle different possible response structures
+      const widgets = data.widgets || data || [];
+      
+      if (!Array.isArray(widgets)) {
+        console.error('Invalid widgets response:', data);
+        setWidgets([]);
+        return;
+      }
+      
+      setWidgets(widgets);
+      
+      // Extract unique widget types from the widgets
+      const widgetTypes = widgets.map((widget: any) => widget.widget_types).filter(Boolean);
+      
+      // Create dynamic service tiles based on actual widget types
+      const dynamicTiles: ServiceTile[] = [
+        // Always include the add-service tile first
+        {
+          id: 'add-service',
+          name: 'add_service',
+          displayName: 'Add Service',
+          description: 'Subscribe to new services and features',
+          icon: 'Plus',
+          category: 'system',
+          color: 'gray',
+          gradient: 'from-gray-500 to-slate-500',
+          isEnabled: true,
+          route: '/dashboard/add-service'
+        }
+      ];
+      
+      // Add tiles for each unique widget type
+      const seenTypes = new Set();
+      widgetTypes.forEach((widgetType: any) => {
+        if (!seenTypes.has(widgetType.name)) {
+          seenTypes.add(widgetType.name);
+          
+          // Map widget type name to standardized service ID
+          const getServiceId = (widgetName: string) => {
+            const serviceMap: { [key: string]: string } = {
+              'task_manager': 'task_manager',
+              'tasks': 'task_manager',
+              'mood_tracker': 'mood_tracker',
+              'mood': 'mood_tracker',
+              'finance_tracker': 'finance_tracker',
+              'finance': 'finance_tracker',
+              'profile': 'profile'
+            };
+            return serviceMap[widgetName] || widgetName;
+          };
+          
+          // Map widget type to service tile
+          const tile: ServiceTile = {
+            id: getServiceId(widgetType.name),
+            name: widgetType.name,
+            displayName: widgetType.display_name,
+            description: widgetType.description,
+            icon: widgetType.icon,
+            category: widgetType.category,
+            color: getColorForCategory(widgetType.category),
+            gradient: getGradientForCategory(widgetType.category),
+            isEnabled: true, // All fetched widgets are enabled
+            route: `/dashboard/${getServiceId(widgetType.name)}`
+          };
+          
+          dynamicTiles.push(tile);
+        }
+      });
+      
+      // Add analytics tile at the end
+      dynamicTiles.push({
+        id: 'analytics',
+        name: 'analytics',
+        displayName: 'Analytics',
+        description: 'View insights and trends across all services',
+        icon: 'TrendingUp',
+        category: 'insights',
+        color: 'purple',
+        gradient: 'from-purple-500 to-violet-500',
+        isEnabled: true,
+        route: '/dashboard/analytics'
+      });
+      
+      setServiceTiles(dynamicTiles);
     } catch (err) {
+      console.error('Error fetching user widgets:', err);
+      setWidgets([]);
+      if (err instanceof Error && err.message.includes('auth')) {
+        router.push('/auth');
+      } else {
       setError(err instanceof Error ? err.message : 'Failed to load widgets');
+      }
     }
   };
 
   const fetchAvailableWidgets = async () => {
     try {
-      const response = await fetch('/api/widget-types');
+      const headers = await getAuthHeaders();
+      const response = await fetch('/api/widget-types', { headers });
+      
       if (!response.ok) {
-        throw new Error('Failed to fetch widget types');
+        throw new Error('Failed to fetch available widgets');
       }
+      
       const data = await response.json();
-      setAvailableWidgets(data.widgetTypes || {});
+      
+      // Handle the actual API response structure
+      const widgetTypesData = data.widgetTypes || data.widget_types || data || {};
+      
+      if (typeof widgetTypesData !== 'object' || widgetTypesData === null) {
+        console.error('Invalid widget types response:', data);
+        setAvailableWidgets({});
+        return;
+      }
+      
+      // The API returns widgetTypes grouped by category, so we can use it directly
+      setAvailableWidgets(widgetTypesData);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load widget types');
-    } finally {
-      setLoading(false);
+      console.error('Error fetching available widgets:', err);
+      setAvailableWidgets({});
+      if (err instanceof Error && err.message.includes('auth')) {
+        router.push('/auth');
+      } else {
+        setError(err instanceof Error ? err.message : 'Failed to load available widgets');
+      }
     }
   };
 
@@ -328,97 +456,102 @@ export function Dashboard() {
     try {
       const headers = await getAuthHeaders();
       
-      // Fetch tasks stats
+      // Calculate task stats
       const tasksResponse = await fetch('/api/tasks', { headers });
       if (tasksResponse.ok) {
         const tasksData = await tasksResponse.json();
-        const totalTasks = tasksData.tasks?.length || 0;
-        const completedTasks = tasksData.tasks?.filter((t: any) => t.status === 'completed').length || 0;
+        const tasks = tasksData.tasks || tasksData || [];
+        const totalTasks = Array.isArray(tasks) ? tasks.length : 0;
+        const completedTasks = Array.isArray(tasks) ? tasks.filter((task: any) => task.completed).length : 0;
         setStats(prev => ({ ...prev, totalTasks, completedTasks }));
       }
 
-      // Fetch mood stats
+      // Calculate mood stats
       const moodResponse = await fetch('/api/mood', { headers });
       if (moodResponse.ok) {
         const moodData = await moodResponse.json();
-        const totalMoodEntries = moodData.entries?.length || 0;
-        const averageMood = moodData.entries?.length > 0 
-          ? moodData.entries.reduce((sum: number, entry: any) => sum + entry.mood_score, 0) / moodData.entries.length 
+        const entries = moodData.entries || moodData || [];
+        const totalMoodEntries = Array.isArray(entries) ? entries.length : 0;
+        const averageMood = Array.isArray(entries) && entries.length > 0 
+          ? entries.reduce((sum: number, entry: any) => sum + (entry.mood_score || 0), 0) / totalMoodEntries
           : 0;
-        setStats(prev => ({ ...prev, totalMoodEntries, averageMood: Math.round(averageMood * 10) / 10 }));
+        setStats(prev => ({ ...prev, totalMoodEntries, averageMood }));
       }
 
-      // Fetch finance stats
+      // Calculate finance stats
       const financeResponse = await fetch('/api/finance', { headers });
       if (financeResponse.ok) {
         const financeData = await financeResponse.json();
-        const totalFinanceEntries = financeData.entries?.length || 0;
-        const totalBalance = financeData.entries?.reduce((sum: number, entry: any) => {
-          return sum + (entry.type === 'income' ? entry.amount : -entry.amount);
-        }, 0) || 0;
+        const entries = financeData.entries || financeData || [];
+        const totalFinanceEntries = Array.isArray(entries) ? entries.length : 0;
+        const totalBalance = Array.isArray(entries) ? entries.reduce((sum: number, entry: any) => {
+          return sum + (entry.type === 'income' ? (entry.amount || 0) : -(entry.amount || 0));
+        }, 0) : 0;
         setStats(prev => ({ ...prev, totalFinanceEntries, totalBalance }));
       }
     } catch (error) {
       console.error('Error calculating stats:', error);
+      if (error instanceof Error && error.message.includes('auth')) {
+        router.push('/auth');
+      }
     }
   };
 
   const addWidget = async (widgetTypeId: string, displayName: string) => {
     try {
       setAddingWidget(widgetTypeId);
-      
-      // Calculate optimal position for the new widget
-      const position = widgetUtils.calculateOptimalPosition(widgets);
-      
-      // Generate unique title if needed
-      const existingTitles = widgets.map(w => w.title);
-      const uniqueTitle = widgetUtils.generateUniqueTitle(displayName, existingTitles);
-      
+      setModalLoading(true);
       const headers = await getAuthHeaders();
+      
       const response = await fetch('/api/widgets', {
         method: 'POST',
         headers,
         body: JSON.stringify({
           widget_type_id: widgetTypeId,
-          title: uniqueTitle,
-          position_x: position.x,
-          position_y: position.y,
-          width: 1,
-          height: 1
+          title: displayName,
+          position_x: 0,
+          position_y: 0,
+          width: 2,
+          height: 2,
+          config: {},
+          is_visible: true
         })
       });
 
-      const data = await response.json();
-
       if (!response.ok) {
-        if (response.status === 409) {
-          // Duplicate widget error
-          addNotification({
-            type: 'warning',
-            title: 'Widget Already Added',
-            message: data.error,
-            duration: 6000
-          });
-          return;
-        }
-        throw new Error(data.error || 'Failed to add widget');
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to add widget');
       }
 
-      setWidgets(prev => [...prev, data.widget]);
+      const data = await response.json();
+      const newWidget = data.widget || data;
+      
+      if (!newWidget) {
+        throw new Error('Invalid response from server');
+      }
+
+      // Close modal first, then refresh data
       setShowWidgetPicker(false);
+      setModalLoading(false);
+      
+      // Brief delay to show the modal closing animation
+      setTimeout(async () => {
+        // Refresh all dashboard data to ensure consistency
+        await refreshDashboardData();
+      }, 300);
+      
       addNotification({
         type: 'success',
-        title: 'Widget Added',
-        message: data.message || `${displayName} widget added successfully!`,
-        duration: 3000
+        message: `${displayName} service activated successfully!`,
+        title: 'Service Added'
       });
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to add widget';
+      console.error('Error adding widget:', err);
+      setModalLoading(false);
       addNotification({
         type: 'error',
-        title: 'Error',
-        message: errorMessage,
-        duration: 6000
+        message: err instanceof Error ? err.message : 'Failed to add service',
+        title: 'Error'
       });
     } finally {
       setAddingWidget(null);
@@ -429,43 +562,34 @@ export function Dashboard() {
     return widgets.some(widget => widget.widget_type_id === widgetTypeId);
   };
 
-  // Helper functions to check enabled widgets
   const isTaskWidgetEnabled = () => {
-    return widgets.some(widget => widget.widget_types.name === 'task_manager');
+    return serviceTiles.find(tile => tile.id === 'task_manager')?.isEnabled || false;
   };
 
   const isMoodWidgetEnabled = () => {
-    return widgets.some(widget => widget.widget_types.name === 'mood_tracker');
+    return serviceTiles.find(tile => tile.id === 'mood_tracker')?.isEnabled || false;
   };
 
   const isFinanceWidgetEnabled = () => {
-    return widgets.some(widget => widget.widget_types.name === 'finance_tracker');
+    return serviceTiles.find(tile => tile.id === 'finance_tracker')?.isEnabled || false;
   };
 
   const getEnabledWidgetStats = () => {
-    const enabledStats = {
-      totalTasks: 0,
-      completedTasks: 0,
-      totalMoodEntries: 0,
-      averageMood: 0,
-      totalFinanceEntries: 0,
-      totalBalance: 0
-    };
-
-    // Only calculate stats for enabled widgets
-    if (isTaskWidgetEnabled()) {
-      enabledStats.totalTasks = stats.totalTasks;
-      enabledStats.completedTasks = stats.completedTasks;
+    const enabledStats = { ...stats };
+    
+    if (!isTaskWidgetEnabled()) {
+      enabledStats.totalTasks = 0;
+      enabledStats.completedTasks = 0;
     }
 
-    if (isMoodWidgetEnabled()) {
-      enabledStats.totalMoodEntries = stats.totalMoodEntries;
-      enabledStats.averageMood = stats.averageMood;
+    if (!isMoodWidgetEnabled()) {
+      enabledStats.totalMoodEntries = 0;
+      enabledStats.averageMood = 0;
     }
 
-    if (isFinanceWidgetEnabled()) {
-      enabledStats.totalFinanceEntries = stats.totalFinanceEntries;
-      enabledStats.totalBalance = stats.totalBalance;
+    if (!isFinanceWidgetEnabled()) {
+      enabledStats.totalFinanceEntries = 0;
+      enabledStats.totalBalance = 0;
     }
 
     return enabledStats;
@@ -476,57 +600,39 @@ export function Dashboard() {
     
     if (!WidgetComponent) {
       return (
-        <WidgetWrapper 
-          key={widget.id} 
-          widget={{
-            id: widget.id,
-            width: widget.width,
-            height: widget.height,
-            name: widget.title
-          }}
-        >
-          <div className="text-center py-8 text-gray-500">
-            <p className="text-sm">Widget type "{widget.widget_types.display_name}" not implemented yet</p>
-            <p className="text-xs text-gray-400 mt-1">{widget.widget_types.description}</p>
+        <div key={widget.id} className="bg-white rounded-lg shadow p-4">
+          <p>Unknown widget type: {widget.widget_types.name}</p>
           </div>
-        </WidgetWrapper>
       );
     }
 
     return (
-      <WidgetComponent
+      <WidgetWrapper
         key={widget.id}
-        widgetId={widget.id}
-        title={widget.title}
-        config={widget.config || widget.widget_types.default_config || {}}
-        widget={{
-          id: widget.id,
-          width: widget.width,
-          height: widget.height,
-          name: widget.title
-        }}
-      />
+        widget={widget}
+        onDelete={() => handleDeleteWidget(widget.id)}
+        onUpdate={(updates) => handleUpdateWidget(widget.id, updates)}
+      >
+        <WidgetComponent widget={widget} />
+      </WidgetWrapper>
     );
   };
 
   const filteredWidgetTypes = () => {
-    let filtered = availableWidgets;
+    if (!availableWidgets || Object.keys(availableWidgets).length === 0) {
+      return [];
+    }
+    
+    let filtered = Object.values(availableWidgets).flat();
     
     if (selectedCategory !== 'all') {
-      filtered = Object.fromEntries(
-        Object.entries(availableWidgets).filter(([category]) => category === selectedCategory)
-      );
+      filtered = filtered.filter(widget => widget.category === selectedCategory);
     }
     
     if (searchQuery) {
-      filtered = Object.fromEntries(
-        Object.entries(filtered).map(([category, widgets]) => [
-          category,
-          widgets.filter(widget => 
+      filtered = filtered.filter(widget => 
             widget.display_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
             widget.description.toLowerCase().includes(searchQuery.toLowerCase())
-          )
-        ]).filter(([_, widgets]) => widgets.length > 0)
       );
     }
     
@@ -537,91 +643,545 @@ export function Dashboard() {
     try {
       const headers = await getAuthHeaders();
       const response = await fetch('/api/profile', { headers });
-      if (!response.ok) throw new Error('Failed to fetch profile');
+      
+      if (response.ok) {
       const data = await response.json();
-      setProfile(data.profile);
-    } catch (err) {
+        const profileData = data.profile || data || null;
+        setProfile(profileData);
+        
+        // Show onboarding if no profile exists
+        if (!profileData) {
+          setShowOnboarding(true);
+        }
+      } else {
+        console.error('Failed to fetch profile:', response.status);
       setProfile(null);
+    }
+    } catch (error) {
+      console.error('Error fetching profile:', error);
+      setProfile(null);
+      if (error instanceof Error && error.message.includes('auth')) {
+        router.push('/auth');
+      }
     }
   };
 
-  // Add a function to refresh today's data
   const refreshTodaysData = async () => {
-    if (!user) return;
-    const headers = await getAuthHeaders();
-    // Tasks
-    const tasksRes = await fetch('/api/tasks', { headers });
-    if (tasksRes.ok) {
-      const data = await tasksRes.json();
-      const today = new Date();
-      setTodaysTasks(
-        (data.tasks || []).filter((t: any) => {
-          if (!t.due_date || t.status === 'completed') return false;
-          const due = new Date(t.due_date);
-          return isDueToday(t.due_date);
-        })
-      );
-    }
-    // Mood
-    const moodRes = await fetch('/api/mood', { headers });
-    if (moodRes.ok) {
-      const data = await moodRes.json();
-      const todayStr = new Date().toISOString().split('T')[0];
-      setTodaysMood((data.entries || []).find((e: any) => e.date === todayStr) || null);
-    }
-    // Finance
-    const financeRes = await fetch('/api/finance', { headers });
-    if (financeRes.ok) {
-      const data = await financeRes.json();
-      const todayStr = new Date().toISOString().split('T')[0];
-      setTodaysFinance((data.entries || []).filter((e: any) => e.date && e.date.startsWith(todayStr)));
+    await Promise.all([
+      fetchTodaysData(),
+      calculateStats()
+    ]);
+  };
+
+  // Comprehensive refresh function for when services are added/removed
+  const refreshDashboardData = async () => {
+    try {
+      console.log('Refreshing dashboard data...');
+      // Set loading state for service tiles
+      setServiceTiles(prev => prev.map(tile => ({ ...tile, loading: true })));
+      
+      await Promise.all([
+        fetchUserWidgets(), // Refresh widgets
+        fetchAvailableWidgets(), // Refresh available widget types
+        fetchTodaysData(), // Refresh today's data
+        calculateStats() // Refresh statistics
+      ]);
+      
+      // Clear loading state
+      setServiceTiles(prev => prev.map(tile => ({ ...tile, loading: false })));
+      console.log('Dashboard data refreshed successfully');
+    } catch (error) {
+      console.error('Error refreshing dashboard data:', error);
+      // Clear loading state on error
+      setServiceTiles(prev => prev.map(tile => ({ ...tile, loading: false })));
     }
   };
+
+  const handleOnboardingComplete = () => {
+    setShowOnboarding(false);
+    addNotification({
+      type: 'success',
+      message: 'Welcome to LifeHub! Your profile has been created successfully.',
+      title: 'Profile Created'
+    });
+  };
+
+  const handleDeleteWidget = async (widgetId: string) => {
+    try {
+    const headers = await getAuthHeaders();
+      const response = await fetch(`/api/widgets/${widgetId}`, {
+        method: 'DELETE',
+        headers
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to delete widget');
+      }
+
+      setWidgets(prev => prev.filter(w => w.id !== widgetId));
+      addNotification({
+        type: 'success',
+        message: 'Widget removed successfully',
+        title: 'Widget Deleted'
+      });
+    } catch (err) {
+      console.error('Error deleting widget:', err);
+      addNotification({
+        type: 'error',
+        message: err instanceof Error ? err.message : 'Failed to delete widget',
+        title: 'Error'
+      });
+    }
+  };
+
+  const handleUpdateWidget = async (widgetId: string, updates: any) => {
+    try {
+      const headers = await getAuthHeaders();
+      const response = await fetch(`/api/widgets/${widgetId}`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify(updates)
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to update widget');
+      }
+
+      const data = await response.json();
+      const updatedWidget = data.widget || data;
+      
+      if (!updatedWidget) {
+        throw new Error('Invalid response from server');
+      }
+      
+      setWidgets(prev => prev.map(w => w.id === widgetId ? updatedWidget : w));
+    } catch (err) {
+      console.error('Error updating widget:', err);
+      addNotification({
+        type: 'error',
+        message: err instanceof Error ? err.message : 'Failed to update widget',
+        title: 'Error'
+      });
+    }
+  };
+
+  const handleTileClick = (tile: ServiceTile) => {
+    console.log('Tile clicked:', tile);
+    
+    if (tile.id === 'add-service') {
+      // Show widget picker to enable services
+      setShowWidgetPicker(true);
+      setSelectedCategory('all');
+      setSearchQuery('');
+      return;
+    }
+    
+    if (tile.id === 'analytics') {
+      // Analytics tile - could redirect to analytics page or show insights
+      addNotification({
+        type: 'info',
+        message: 'Analytics feature coming soon!',
+        title: 'Coming Soon'
+      });
+      return;
+    }
+    
+    // Check if the service is enabled
+    if (!tile.isEnabled) {
+      // Show widget picker to enable the service
+      setShowWidgetPicker(true);
+      setSelectedCategory('all');
+      setSearchQuery('');
+      addNotification({
+        type: 'info',
+        message: `Please subscribe to ${tile.displayName} to access this service.`,
+        title: 'Service Not Active'
+      });
+      return;
+    }
+    
+    // Handle different service types
+    switch (tile.id) {
+      case 'task_manager':
+      case 'tasks':
+        router.push('/dashboard/tasks');
+        break;
+        
+      case 'mood_tracker':
+      case 'mood':
+        router.push('/dashboard/mood');
+        break;
+        
+      case 'finance_tracker':
+      case 'finance':
+        router.push('/dashboard/finance');
+        break;
+        
+      case 'profile':
+        router.push('/dashboard/profile');
+        break;
+        
+      default:
+        // For other services, try to navigate to their specific route
+        if (tile.route && tile.route !== '/dashboard/add-service') {
+          router.push(tile.route);
+        } else {
+          // Fallback: show notification that service page is not available
+          addNotification({
+            type: 'info',
+            message: `${tile.displayName} service page is not available yet.`,
+            title: 'Coming Soon'
+          });
+        }
+        break;
+    }
+  };
+
+  const handleUnsubscribeService = async (tile: ServiceTile) => {
+    try {
+      // Find the widget to delete
+      const widgetToDelete = widgets.find(widget => widget.widget_type_id === tile.name);
+      
+      if (!widgetToDelete) {
+        addNotification({
+          type: 'error',
+          message: 'Service not found',
+          title: 'Error'
+        });
+        return;
+      }
+
+      const headers = await getAuthHeaders();
+      const response = await fetch(`/api/widgets/${widgetToDelete.id}`, {
+        method: 'DELETE',
+        headers
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to unsubscribe from service');
+      }
+
+      // Remove widget from state
+      setWidgets(prev => prev.filter(w => w.id !== widgetToDelete.id));
+      
+      // Update service tile to disabled
+      setServiceTiles(prev => prev.map(t => 
+        t.id === tile.id ? { ...t, isEnabled: false } : t
+      ));
+      
+      addNotification({
+        type: 'success',
+        message: `${tile.displayName} service unsubscribed successfully!`,
+        title: 'Service Unsubscribed'
+      });
+    } catch (err) {
+      console.error('Error unsubscribing from service:', err);
+      addNotification({
+        type: 'error',
+        message: err instanceof Error ? err.message : 'Failed to unsubscribe from service',
+        title: 'Error'
+      });
+    }
+  };
+
+  const handleUnsubscribeFromModal = async (widgetTypeId: string, displayName: string) => {
+    try {
+      setModalLoading(true);
+      // Find the widget to delete
+      const widgetToDelete = widgets.find(widget => widget.widget_type_id === widgetTypeId);
+      
+      if (!widgetToDelete) {
+        addNotification({
+          type: 'error',
+          message: 'Service not found',
+          title: 'Error'
+        });
+        return;
+      }
+
+      const headers = await getAuthHeaders();
+      const response = await fetch(`/api/widgets/${widgetToDelete.id}`, {
+        method: 'DELETE',
+        headers
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to unsubscribe from service');
+      }
+
+      // Close modal first, then refresh data
+      setShowWidgetPicker(false);
+      setModalLoading(false);
+      
+      // Brief delay to show the modal closing animation
+      setTimeout(async () => {
+        // Refresh all dashboard data to ensure consistency
+        await refreshDashboardData();
+      }, 300);
+      
+      addNotification({
+        type: 'success',
+        message: `${displayName} service unsubscribed successfully!`,
+        title: 'Service Unsubscribed'
+      });
+    } catch (err) {
+      console.error('Error unsubscribing from service:', err);
+      setModalLoading(false);
+      addNotification({
+        type: 'error',
+        message: err instanceof Error ? err.message : 'Failed to unsubscribe from service',
+        title: 'Error'
+      });
+    }
+  };
+
+  const getTileIcon = (iconName: string) => {
+    const iconMap: { [key: string]: any } = {
+      Plus,
+      Target,
+      Heart,
+      DollarSign,
+      TrendingUp,
+      Calendar,
+      Clock,
+      HelpCircle,
+      Sparkles,
+      Zap,
+      Smile,
+      FileText,
+      CheckSquare,
+      Cloud,
+      Book
+    };
+    return iconMap[iconName] || Target;
+  };
+
+  const getTilePreviewData = (tile: ServiceTile) => {
+    switch (tile.id) {
+      case 'task_manager':
+        return {
+          count: todaysTasks.length,
+          label: 'tasks today',
+          status: todaysTasks.length > 0 ? 'active' : 'empty'
+        };
+      case 'mood_tracker':
+        return {
+          count: todaysMood ? 1 : 0,
+          label: 'mood logged',
+          status: todaysMood ? 'logged' : 'empty'
+        };
+      case 'finance_tracker':
+        return {
+          count: todaysFinance.length,
+          label: 'transactions',
+          status: todaysFinance.length > 0 ? 'active' : 'empty'
+        };
+      case 'analytics':
+        return {
+          count: null,
+          label: 'insights',
+          status: 'active'
+        };
+      default:
+        return {
+          count: null,
+          label: 'service',
+          status: 'active'
+        };
+    }
+  };
+
+  // Get available services for subscription
+  const getAvailableServices = () => {
+    console.log('getAvailableServices called');
+    console.log('availableWidgets:', availableWidgets);
+    console.log('serviceTiles:', serviceTiles);
+    
+    // First try to get from availableWidgets (API response)
+    // The API returns widgetTypes grouped by category, so we need to flatten it
+    const allWidgetTypes = Object.values(availableWidgets).flat();
+    console.log('allWidgetTypes from API:', allWidgetTypes);
+    
+    // Get currently subscribed widget names
+    const subscribedWidgetNames = new Set(serviceTiles.map(tile => tile.name));
+    console.log('subscribedWidgetNames:', subscribedWidgetNames);
+    
+    // If availableWidgets is empty, create a fallback list based on common widget types
+    if (allWidgetTypes.length === 0) {
+      console.log('Using fallback widget types');
+      const fallbackWidgetTypes = [
+        {
+          name: 'habit_tracker',
+          display_name: 'Habit Tracker',
+          description: 'Track your daily habits and build routines',
+          icon: 'Target',
+          category: 'health'
+        },
+        {
+          name: 'notes',
+          display_name: 'Quick Notes',
+          description: 'Take quick notes and reminders',
+          icon: 'FileText',
+          category: 'productivity'
+        },
+        {
+          name: 'weather',
+          display_name: 'Weather',
+          description: 'Current weather information',
+          icon: 'Cloud',
+          category: 'utility'
+        },
+        {
+          name: 'goals',
+          display_name: 'Goals',
+          description: 'Set and track your personal goals',
+          icon: 'Target',
+          category: 'productivity'
+        },
+        {
+          name: 'meditation',
+          display_name: 'Meditation',
+          description: 'Track your meditation sessions',
+          icon: 'Heart',
+          category: 'wellness'
+        },
+        {
+          name: 'reading',
+          display_name: 'Reading Tracker',
+          description: 'Track your reading progress',
+          icon: 'Book',
+          category: 'productivity'
+        }
+      ];
+      
+      // Filter out already subscribed widgets and return available ones
+      const availableFromFallback = fallbackWidgetTypes.filter((widgetType: any) => 
+        widgetType.name !== 'add_service' && 
+        widgetType.name !== 'analytics' && 
+        !subscribedWidgetNames.has(widgetType.name)
+      ).map((widgetType: any) => ({
+        id: widgetType.name,
+        name: widgetType.name,
+        displayName: widgetType.display_name,
+        description: widgetType.description,
+        icon: widgetType.icon,
+        category: widgetType.category,
+        color: getColorForCategory(widgetType.category),
+        gradient: getGradientForCategory(widgetType.category),
+        isEnabled: false,
+        route: `/dashboard/${widgetType.name}`
+      }));
+      
+      console.log('Available services from fallback:', availableFromFallback);
+      return availableFromFallback;
+    }
+    
+    // Filter out already subscribed widgets and return available ones
+    const availableFromAPI = allWidgetTypes.filter((widgetType: any) => 
+      widgetType.name !== 'add_service' && 
+      widgetType.name !== 'analytics' && 
+      !subscribedWidgetNames.has(widgetType.name)
+    ).map((widgetType: any) => ({
+      id: widgetType.name,
+      name: widgetType.name,
+      displayName: widgetType.display_name,
+      description: widgetType.description,
+      icon: widgetType.icon,
+      category: widgetType.category,
+      color: getColorForCategory(widgetType.category),
+      gradient: getGradientForCategory(widgetType.category),
+      isEnabled: false,
+      route: `/dashboard/${widgetType.name}`
+    }));
+    
+    console.log('Available services from API:', availableFromAPI);
+    return availableFromAPI;
+  };
+
+  // Helper function to get color for widget category
+  const getColorForCategory = (category: string): string => {
+    const colorMap: { [key: string]: string } = {
+      productivity: 'blue',
+      health: 'pink',
+      finance: 'green',
+      utility: 'orange',
+      insights: 'purple',
+      wellness: 'pink',
+      default: 'gray'
+    };
+    return colorMap[category] || colorMap.default;
+  };
+
+  // Helper function to get gradient for widget category
+  const getGradientForCategory = (category: string): string => {
+    const gradientMap: { [key: string]: string } = {
+      productivity: 'from-blue-500 to-cyan-500',
+      health: 'from-pink-500 to-rose-500',
+      finance: 'from-green-500 to-emerald-500',
+      utility: 'from-orange-500 to-amber-500',
+      insights: 'from-purple-500 to-violet-500',
+      wellness: 'from-pink-500 to-rose-500',
+      default: 'from-gray-500 to-slate-500'
+    };
+    return gradientMap[category] || gradientMap.default;
+  };
+
+  useEffect(() => {
+    const initializeDashboard = async () => {
+      try {
+        await checkUser();
+      } catch (error) {
+        console.error('Error initializing dashboard:', error);
+        setError('Failed to initialize dashboard');
+        setLoading(false);
+      }
+    };
+    
+    initializeDashboard();
+  }, []);
+
+  useEffect(() => {
+    if (user && !dataLoadedRef.current) {
+      const loadDashboardData = async () => {
+        try {
+          dataLoadedRef.current = true;
+          await Promise.all([
+            fetchProfile(),
+            fetchUserWidgets(),
+            fetchAvailableWidgets(),
+            fetchTodaysData(),
+            calculateStats()
+          ]);
+        } catch (error) {
+          console.error('Error loading dashboard data:', error);
+          setError('Failed to load dashboard data');
+        } finally {
+          setLoading(false);
+    }
+  };
+      
+      loadDashboardData();
+    } else if (user === null && !loading) {
+      // User is not authenticated, redirect to auth
+      router.push('/auth');
+    }
+  }, [user, router]);
+
+  // Reset data loaded ref when user changes
+  useEffect(() => {
+    dataLoadedRef.current = false;
+  }, [user]);
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 flex items-center justify-center p-4">
-        <div className="text-center max-w-md">
-          <div className="w-16 h-16 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full flex items-center justify-center mx-auto mb-6 animate-pulse">
-            <Sparkles className="w-8 h-8 text-white" />
-          </div>
-          <h3 className="text-xl font-semibold text-gray-900 mb-2">Loading your dashboard...</h3>
-          <p className="text-gray-600 font-medium">Preparing your personalized experience</p>
-          <p className="text-sm text-gray-500 mt-2">This will just take a moment</p>
-          
-          {/* Loading Skeleton for Insights Panel */}
-          <div className="mt-8 bg-white rounded-2xl p-6 shadow-sm border border-blue-100 animate-pulse">
-            <div className="flex items-center space-x-3 mb-4">
-              <div className="w-12 h-12 bg-gray-200 rounded-full"></div>
-              <div className="flex-1">
-                <div className="h-6 bg-gray-200 rounded w-3/4 mb-2"></div>
-                <div className="h-4 bg-gray-200 rounded w-1/2"></div>
-              </div>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-              {[...Array(3)].map((_, i) => (
-                <div key={i} className="bg-gray-50 rounded-xl p-4">
-                  <div className="flex items-center space-x-3 mb-3">
-                    <div className="w-8 h-8 bg-gray-200 rounded-lg"></div>
-                    <div className="flex-1">
-                      <div className="h-4 bg-gray-200 rounded w-2/3 mb-1"></div>
-                      <div className="h-3 bg-gray-200 rounded w-1/2"></div>
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <div className="h-6 bg-gray-200 rounded w-1/3"></div>
-                    <div className="h-2 bg-gray-200 rounded-full"></div>
-                    <div className="h-3 bg-gray-200 rounded w-1/2"></div>
-                  </div>
-                </div>
-              ))}
-            </div>
-            <div className="flex flex-wrap gap-3">
-              {[...Array(4)].map((_, i) => (
-                <div key={i} className="h-8 bg-gray-200 rounded-lg w-20"></div>
-              ))}
-            </div>
-          </div>
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading your dashboard...</p>
         </div>
       </div>
     );
@@ -629,20 +1189,16 @@ export function Dashboard() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 flex items-center justify-center p-4">
-        <div className="text-center max-w-md">
-          <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <AlertCircle className="w-8 h-8 text-red-600" />
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 flex items-center justify-center">
+        <div className="max-w-md w-full bg-white rounded-xl shadow-lg p-8 text-center">
+          <div className="text-red-500 mb-4">
+            <AlertCircle className="w-12 h-12 mx-auto" />
           </div>
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">Error loading dashboard</h3>
-          <p className="text-gray-600 mb-6">{error}</p>
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">Error Loading Dashboard</h2>
+          <p className="text-gray-600 mb-4">{error}</p>
           <button 
-            onClick={() => {
-              setError(null);
-              setLoading(true);
-              Promise.all([fetchUserWidgets(), fetchAvailableWidgets()]);
-            }}
-            className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+            onClick={() => router.refresh()}
+            className="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 transition-colors"
           >
             Try Again
           </button>
@@ -651,373 +1207,211 @@ export function Dashboard() {
     );
   }
 
-  // Before rendering the finance overview box, define netChange:
-  const netChange = todaysFinance.reduce((sum, e) => sum + (e.type === 'income' ? e.amount : -e.amount), 0);
-
   return (
-    <>
-      <TopBar isLoggedIn={!!authUser} />
-      <div className="min-h-screen flex flex-col pt-20">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
+      <TopBar isLoggedIn={true} />
+      
         {/* Notifications */}
-        <div className="fixed top-4 right-4 z-50 space-y-3 max-w-sm">
+      <AnimatePresence>
           {notifications.map(notification => (
-            <div
+          <motion.div
               key={notification.id}
-              className={`flex items-start space-x-3 p-4 rounded-xl shadow-lg border-l-4 transform transition-all duration-300 ${
-                notification.type === 'success' 
-                  ? 'bg-green-50 border-green-400 text-green-800'
-                  : notification.type === 'error'
-                  ? 'bg-red-50 border-red-400 text-red-800'
-                  : notification.type === 'warning'
-                  ? 'bg-yellow-50 border-yellow-400 text-yellow-800'
-                  : 'bg-blue-50 border-blue-400 text-blue-800'
-              }`}
-            >
-              <div className="flex-shrink-0 mt-0.5">
-                {notification.type === 'success' ? (
-                  <CheckCircle className="w-5 h-5" />
-                ) : notification.type === 'warning' ? (
-                  <AlertCircle className="w-5 h-5" />
-                ) : (
-                  <AlertCircle className="w-5 h-5" />
-                )}
+            initial={{ opacity: 0, y: -50, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -50, scale: 0.9 }}
+            className={`fixed top-20 right-4 z-50 max-w-sm w-full bg-white rounded-xl shadow-2xl border-l-4 ${
+              notification.type === 'success' ? 'border-green-500' :
+              notification.type === 'error' ? 'border-red-500' :
+              notification.type === 'warning' ? 'border-yellow-500' : 'border-blue-500'
+            } p-4`}
+          >
+            <div className="flex items-start space-x-3">
+              <div className={`flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center ${
+                notification.type === 'success' ? 'bg-green-100' :
+                notification.type === 'error' ? 'bg-red-100' :
+                notification.type === 'warning' ? 'bg-yellow-100' : 'bg-blue-100'
+              }`}>
+                {notification.type === 'success' && <CheckCircle className="w-4 h-4 text-green-600" />}
+                {notification.type === 'error' && <AlertCircle className="w-4 h-4 text-red-600" />}
+                {notification.type === 'warning' && <AlertCircle className="w-4 h-4 text-yellow-600" />}
+                {notification.type === 'info' && <HelpCircle className="w-4 h-4 text-blue-600" />}
               </div>
               <div className="flex-1 min-w-0">
                 {notification.title && (
-                  <p className="text-sm font-semibold mb-1">{notification.title}</p>
+                  <p className="text-sm font-semibold text-gray-900 mb-1">{notification.title}</p>
                 )}
-                <p className="text-sm">{notification.message}</p>
+                <p className="text-sm text-gray-600">{notification.message}</p>
               </div>
               <button
                 onClick={() => removeNotification(notification.id)}
-                className="flex-shrink-0 text-gray-400 hover:text-gray-600 transition-colors"
+                className="flex-shrink-0 text-gray-400 hover:text-gray-600"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
-          ))}
-        </div>
+          </motion.div>
+        ))}
+      </AnimatePresence>
 
-        {/* Dashboard Content */}
-        <div className="flex-1 overflow-auto">
-          <div className="p-4 lg:p-8 max-w-7xl mx-auto w-full">
-            {/* Greeting in body */}
-            <div className="mb-8">
-              <h2 className="text-2xl font-bold text-gray-900">
-                {getTimeBasedGreeting()}, {profile?.full_name || 'User'}!
-              </h2>
-            </div>
-            {/* Today's Overview - Only today's content */}
-            {[isTaskWidgetEnabled(), isMoodWidgetEnabled(), isFinanceWidgetEnabled()].some(Boolean) && (
-              <div className="bg-gradient-to-r from-blue-50 via-indigo-50 to-purple-50 rounded-2xl p-6 mb-8 border border-blue-100 shadow-sm">
-                <div className="flex items-center justify-between mb-6">
-                  <div>
-                    <h2 className="text-2xl font-bold text-gray-900 mb-2">Today's Overview</h2>
-                    <p className="text-gray-600">See your progress for today</p>
-                  </div>
-                  <div className="w-12 h-12 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full flex items-center justify-center">
-                    <Sparkles className="w-6 h-6 text-white" />
-                  </div>
-                </div>
-                <div className={`grid gap-4 mb-6 ${
-                  [isTaskWidgetEnabled(), isMoodWidgetEnabled(), isFinanceWidgetEnabled()].filter(Boolean).length === 1 
-                    ? 'grid-cols-1' 
-                    : [isTaskWidgetEnabled(), isMoodWidgetEnabled(), isFinanceWidgetEnabled()].filter(Boolean).length === 2 
-                    ? 'grid-cols-1 md:grid-cols-2' 
-                    : 'grid-cols-1 md:grid-cols-3'
-                }`}>
-                  {/* Today's Tasks */}
-                  {isTaskWidgetEnabled() && (
-                    <div className="bg-white rounded-xl p-4 shadow-sm border border-blue-100 relative group min-h-[140px] flex flex-col justify-between">
-                      <div>
-                        <div className="flex items-center justify-between mb-2">
-                          <div className="flex items-center space-x-2">
-                            <CheckCircle className="w-5 h-5 text-blue-600" />
-                            <span className="font-semibold text-gray-900">Today's Tasks</span>
-                          </div>
-                          <button
-                            className="p-1 rounded-full bg-blue-50 hover:bg-blue-100 text-blue-600 shadow-sm transition-all"
-                            title="Add Task"
-                            onClick={() => setShowQuickAddTask(true)}
-                            tabIndex={0}
-                          >
-                            <Plus className="w-5 h-5" />
-                          </button>
-                        </div>
-                        <div className="flex items-center justify-center gap-10">
-                          <div className="flex flex-col items-center min-w-0">
-                            <span className="text-lg font-bold text-blue-700">{todaysTasks.length}</span>
-                            <span className="text-xs text-gray-500">Due Today</span>
-                          </div>
-                        </div>
-                      </div>
-                      <button
-                        className="absolute left-2 bottom-2 text-xs text-blue-600 hover:underline font-medium"
-                        onClick={() => router.push('/dashboard/tasks')}
-                      >
-                        View All
-                      </button>
-                    </div>
-                  )}
-                  {/* Today's Mood */}
-                  {isMoodWidgetEnabled() && (
-                    <div className="bg-white rounded-xl p-4 shadow-sm border border-purple-100 relative group min-h-[140px] flex flex-col justify-between">
-                      <button
-                        className="absolute top-2 right-2 p-1 rounded-full bg-purple-50 hover:bg-purple-100 text-purple-600 shadow-sm transition-all"
-                        title="Log Mood"
-                        onClick={() => setShowQuickLogMood(true)}
-                        tabIndex={0}
-                      >
-                        <Plus className="w-5 h-5" />
-                      </button>
-                      <div>
-                        <div className="flex items-center space-x-2 mb-2">
-                          <Sparkles className="w-5 h-5 text-purple-600" />
-                          <span className="font-semibold text-gray-900">Today's Mood</span>
-                        </div>
-                        {todaysMood ? (
-                          <div className="flex items-center justify-center gap-10">
-                            <span className="text-3xl">{todaysMood.mood_emoji}</span>
-                            <div className="flex flex-col items-center">
-                              <span className="text-lg font-bold text-purple-700">{todaysMood.mood_label}</span>
-                              <span className="text-xs text-gray-500">Score: {todaysMood.mood_score}/10</span>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="flex items-center justify-center gap-10">
-                            <span className="text-xs text-gray-400">No mood logged for today.</span>
-                          </div>
-                        )}
-                      </div>
-                      <button
-                        className="absolute left-2 bottom-2 text-xs text-purple-600 hover:underline font-medium"
-                        onClick={() => router.push('/dashboard/mood')}
-                      >
-                        View All
-                      </button>
-                    </div>
-                  )}
-                  {/* Today's Finance */}
-                  {isFinanceWidgetEnabled() && (
-                    <div className="bg-white rounded-xl p-4 shadow-sm border border-green-100 relative group min-h-[140px] flex flex-col justify-between">
-                      <button
-                        className="absolute top-2 right-2 p-1 rounded-full bg-green-50 hover:bg-green-100 text-green-600 shadow-sm transition-all"
-                        title="Add Transaction"
-                        onClick={() => setShowQuickAddFinance(true)}
-                        tabIndex={0}
-                      >
-                        <Plus className="w-5 h-5" />
-                      </button>
-                      <div>
-                        <div className="flex items-center space-x-2 mb-2">
-                          <TrendingUp className="w-5 h-5 text-green-600" />
-                          <span className="font-semibold text-gray-900">Today's Finances</span>
-                        </div>
-                        <div className="flex items-center justify-center gap-10">
-                          <div className="flex flex-col items-center min-w-0">
-                            <span className="text-lg font-bold text-green-700">${todaysFinance.filter(e => e.type === 'income').reduce((sum, e) => sum + e.amount, 0).toFixed(2)}</span>
-                            <span className="text-xs text-gray-500">Income</span>
-                          </div>
-                          <div className="flex flex-col items-center min-w-0">
-                            <span className="text-lg font-bold text-red-600">${todaysFinance.filter(e => e.type === 'expense').reduce((sum, e) => sum + e.amount, 0).toFixed(2)}</span>
-                            <span className="text-xs text-gray-500">Spent</span>
-                          </div>
-                        </div>
-                        {todaysFinance.length === 0 && (
-                          <p className="text-xs text-gray-500 mt-2">No transactions today.</p>
-                        )}
-                      </div>
-                      <button
-                        className="absolute left-2 bottom-2 text-xs text-green-600 hover:underline font-medium"
-                        onClick={() => router.push('/dashboard/finance')}
-                      >
-                        View All
-                      </button>
-                    </div>
-                  )}
-                </div>
-                {/* Quick Add/Log Modals */}
-                {showQuickAddTask && (
-                  <AddTaskModal open={showQuickAddTask} onClose={() => setShowQuickAddTask(false)} onSuccess={() => { setShowQuickAddTask(false); refreshTodaysData(); }} />
-                )}
-                {showQuickLogMood && (
-                  <AddMoodModal open={showQuickLogMood} onClose={() => setShowQuickLogMood(false)} onSuccess={() => { setShowQuickLogMood(false); refreshTodaysData(); }} />
-                )}
-                {showQuickAddFinance && (
-                  <AddFinanceModal open={showQuickAddFinance} onClose={() => setShowQuickAddFinance(false)} onSuccess={() => { setShowQuickAddFinance(false); refreshTodaysData(); }} />
-                )}
-              </div>
-            )}
+      <main className="pt-20 px-4 pb-8">
+        {/* Header Section */}
+        <div className="max-w-7xl mx-auto mb-8">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6 }}
+            className="text-center mb-8"
+          >
+            <h1 className="text-4xl font-bold text-gray-900 mb-2">
+              {getTimeBasedGreeting()}, {profile?.full_name?.split(' ')[0] || 'there'}! 👋
+            </h1>
+            <p className="text-lg text-gray-600">
+              Welcome to your personal command center
+            </p>
+          </motion.div>
 
-            {/* Widgets Section - Simplified */}
-            <div className="flex items-center justify-between mb-6">
-              <div>
-                <h2 className="text-xl font-semibold text-gray-900">Your Widgets</h2>
-                <p className="text-sm text-gray-600">
-                  {widgets.length === 0 ? 'Get started by adding your first widget' : `${widgets.length} active widget${widgets.length !== 1 ? 's' : ''}`}
-                </p>
-              </div>
-              <button
-                onClick={() => setShowWidgetPicker(true)}
-                title="Add Widget"
-                className="fixed bottom-6 right-6 w-14 h-14 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-full shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all duration-200 flex items-center justify-center z-30"
-              >
-                <Plus className="w-6 h-6" />
-              </button>
-            </div>
-
-            {/* Widgets Grid */}
-            {widgets.length === 0 ? (
-              <div className="text-center py-16 bg-white rounded-xl shadow-sm border border-gray-200">
-                <div className="w-20 h-20 bg-gradient-to-r from-blue-100 to-purple-100 rounded-full flex items-center justify-center mx-auto mb-6">
-                  <Grid3X3 className="w-10 h-10 text-blue-600" />
-                </div>
-                <h3 className="text-xl font-semibold text-gray-900 mb-2">Welcome to LifeHub!</h3>
-                <p className="text-gray-600 mb-8 max-w-md mx-auto">
-                  Get started by adding your first widget. Choose from task management, mood tracking, 
-                  finance monitoring, and more to customize your personal dashboard.
-                </p>
-                <button
-                  onClick={() => setShowWidgetPicker(true)}
-                  className="inline-flex items-center space-x-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
+          {/* Service Tiles Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+            {serviceTiles.map((tile, index) => {
+              const IconComponent = getTileIcon(tile.icon);
+              const previewData = getTilePreviewData(tile);
+              
+              return (
+                <motion.div
+                  key={tile.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.6, delay: index * 0.1 }}
+                  className={`relative group cursor-pointer h-64 ${
+                    tile.isEnabled ? 'opacity-100' : 'opacity-60'
+                  }`}
+                  onMouseEnter={() => setHoveredTile(tile.id)}
+                  onMouseLeave={() => setHoveredTile(null)}
+                  onClick={() => handleTileClick(tile)}
                 >
-                  <Plus className="w-5 h-5" />
-                  <span>Add Your First Widget</span>
-                </button>
-              </div>
-            ) : (
-              <div className="columns-1 lg:columns-2 gap-6 space-y-6">
-                {widgets.map(renderWidget)}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Widget Picker Modal */}
-        {showWidgetPicker && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
-              <div className="flex items-center justify-between p-6 border-b border-gray-200">
-                <div>
-                  <h2 className="text-2xl font-bold text-gray-900">Add Widget</h2>
-                  <p className="text-gray-600 mt-1">Choose from our collection of widgets</p>
-                </div>
-                <button
-                  onClick={() => setShowWidgetPicker(false)}
-                  className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-                >
-                  <X className="w-6 h-6" />
-                </button>
-              </div>
-
-              <div className="p-6">
-                {/* Search and Filter */}
-                <div className="flex flex-col sm:flex-row gap-4 mb-6">
-                  <div className="flex-1 relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                    <input
-                      type="text"
-                      placeholder="Search widgets..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
-                  </div>
-                  <select
-                    value={selectedCategory}
-                    onChange={(e) => setSelectedCategory(e.target.value)}
-                    className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  <motion.div
+                    className={`relative overflow-hidden rounded-2xl bg-white/80 backdrop-blur-sm border border-white/20 shadow-lg hover:shadow-2xl transition-all duration-300 h-full ${
+                      hoveredTile === tile.id ? 'scale-105' : 'scale-100'
+                    }`}
+                    whileHover={{ y: -8 }}
+                    transition={{ type: "spring", stiffness: 300, damping: 20 }}
                   >
-                    <option value="all">All Categories</option>
-                    {Object.keys(availableWidgets).map(category => (
-                      <option key={category} value={category}>
-                        {category.charAt(0).toUpperCase() + category.slice(1)}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Widgets Grid */}
-                {Object.keys(filteredWidgetTypes()).length === 0 ? (
-                  <div className="text-center py-12">
-                    <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <Search className="w-8 h-8 text-gray-400" />
+                    {/* Gradient Background */}
+                    <div className={`absolute inset-0 bg-gradient-to-br ${tile.gradient} opacity-5 group-hover:opacity-10 transition-opacity duration-300`} />
+                    
+                    {/* Content */}
+                    <div className="relative p-6 h-full flex flex-col">
+                      {/* Loading Overlay */}
+                      {tile.loading && (
+                        <div className="absolute inset-0 bg-white/80 backdrop-blur-sm rounded-2xl flex items-center justify-center z-10">
+                          <div className="flex items-center space-x-2">
+                            <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                            <span className="text-sm text-gray-600">Updating...</span>
+                        </div>
+                            </div>
+                      )}
+                      
+                      <div className="flex items-start justify-between mb-4">
+                        <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${tile.gradient} flex items-center justify-center shadow-lg`}>
+                          <IconComponent className="w-6 h-6 text-white" />
+                          </div>
+                        <div className="flex items-center space-x-2">
+                          {tile.isEnabled ? (
+                            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                        ) : (
+                            <div className="w-2 h-2 bg-gray-300 rounded-full" />
+                        )}
+                          <ExternalLink className="w-4 h-4 text-gray-400 group-hover:text-gray-600 transition-colors" />
+                      </div>
                     </div>
-                    <p className="text-gray-500">No widgets found matching your criteria</p>
-                  </div>
-                ) : (
-                  <div className="space-y-6 max-h-[60vh] overflow-y-auto">
-                    {Object.entries(filteredWidgetTypes()).map(([category, widgetTypes]) => (
-                      <div key={category}>
-                        <h3 className="text-lg font-semibold text-gray-800 mb-4 capitalize flex items-center">
-                          {category}
-                          <span className="ml-2 text-sm text-gray-500">({widgetTypes.length})</span>
-                        </h3>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                          {widgetTypes.map((widgetType) => {
-                            const isAdded = isWidgetTypeAdded(widgetType.id);
-                            const isAdding = addingWidget === widgetType.id;
-                            
-                            return (
-                              <div
-                                key={widgetType.id}
-                                className={`border rounded-xl p-4 transition-all duration-200 cursor-pointer ${
-                                  isAdded 
-                                    ? 'border-green-300 bg-green-50 cursor-not-allowed'
-                                    : isAdding
-                                    ? 'border-blue-300 bg-blue-50 cursor-wait'
-                                    : 'border-gray-200 hover:border-blue-300 hover:bg-blue-50 hover:shadow-md'
-                                }`}
-                                onClick={() => {
-                                  if (!isAdded && !isAdding) {
-                                    addWidget(widgetType.id, widgetType.display_name);
-                                  }
-                                }}
-                              >
-                                <div className="flex items-start space-x-3">
-                                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
-                                    isAdded ? 'bg-green-100' : 'bg-blue-100'
-                                  }`}>
-                                    <span className={`text-xl ${
-                                      isAdded ? 'text-green-600' : 'text-blue-600'
-                                    }`}>
-                                      {widgetUtils.getWidgetIcon(widgetType.icon)}
+                      
+                      <h3 className="text-xl font-bold text-gray-900 mb-2">
+                        {tile.displayName}
+                      </h3>
+                      <p className="text-gray-600 text-sm mb-4 flex-1">
+                        {tile.description}
+                      </p>
+                      
+                      {/* Preview Data - Only show for enabled services that aren't the add service tile */}
+                      {tile.id !== 'add-service' && (
+                        <div className="flex items-center justify-between mt-auto">
+                          <div className="flex items-center space-x-2">
+                            {previewData.count !== null ? (
+                              <span className="text-2xl font-bold text-gray-900">
+                                {previewData.count}
+                              </span>
+                            ) : (
+                              <span className="text-sm text-gray-500">—</span>
+                            )}
+                            <span className="text-sm text-gray-500">
+                              {previewData.label}
+                            </span>
+          </div>
+                          <ArrowRight className="w-4 h-4 text-gray-400 group-hover:text-gray-600 transition-colors" />
+        </div>
+                      )}
+                      
+                      {/* Add Service Tile - Simple call to action */}
+                      {tile.id === 'add-service' && (
+                        <div className="mt-auto">
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm text-gray-500">
+                              {getAvailableServices().filter(s => !s.isEnabled).length} services available
+                            </span>
+                            <ArrowRight className="w-4 h-4 text-gray-400 group-hover:text-gray-600 transition-colors" />
+                </div>
+              </div>
+                      )}
+                      
+                      {/* Status Indicator - Only show for non-add-service tiles */}
+                      {tile.id !== 'add-service' && (
+                        <div className="mt-4 flex items-center space-x-2">
+                          <div className={`w-2 h-2 rounded-full ${
+                            previewData.status === 'active' || previewData.status === 'logged' ? 'bg-green-500' :
+                            previewData.status === 'empty' ? 'bg-yellow-500' : 'bg-gray-300'
+                          }`} />
+                          <span className="text-xs text-gray-500 capitalize">
+                            {previewData.status}
                                     </span>
                                   </div>
-                                  <div className="flex-1 min-w-0">
-                                    <div className="flex items-center space-x-2 mb-1">
-                                      <h4 className="font-semibold text-gray-900 truncate">{widgetType.display_name}</h4>
-                                      {isAdded && (
-                                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                          Added
-                                        </span>
-                                      )}
+                      )}
+                      
+                      {/* Hover Overlay */}
+                      <motion.div
+                        className="absolute inset-0 bg-gradient-to-br from-black/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+                        initial={false}
+                      />
                                     </div>
-                                    <p className="text-sm text-gray-600 mb-2">{widgetType.description}</p>
-                                    {isAdding && (
-                                      <div className="flex items-center text-sm text-blue-600">
-                                        <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mr-2"></div>
-                                        Adding...
-                                      </div>
-                                    )}
-                                    {isAdded && (
-                                      <p className="text-xs text-green-600">Already added to your dashboard</p>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
+                  </motion.div>
+                </motion.div>
                             );
                           })}
                         </div>
                       </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
+      </main>
+
+      {/* Modals */}
+      <AnimatePresence>
+        {showOnboarding && (
+          <OnboardingModal
+            onComplete={handleOnboardingComplete}
+            onClose={() => setShowOnboarding(false)}
+          />
         )}
+        
+        {showWidgetPicker && (
+          <WidgetPickerModal
+            isOpen={showWidgetPicker}
+            onClose={() => setShowWidgetPicker(false)}
+            availableWidgets={availableWidgets}
+            onAddWidget={addWidget}
+            addingWidget={addingWidget}
+            enabledWidgets={widgets.map(w => w.widget_type_id)}
+            onUnsubscribe={handleUnsubscribeFromModal}
+            isLoading={modalLoading}
+          />
+        )}
+      </AnimatePresence>
       </div>
-    </>
   );
 } 

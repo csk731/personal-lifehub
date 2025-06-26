@@ -2,21 +2,23 @@
 import { TopBar } from '@/components/dashboard/TopBar';
 import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
 export default function HomePage() {
   const [isLoggedIn, setIsLoggedIn] = useState<boolean | null>(null);
+  const router = useRouter();
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
       if (data.user) {
         setIsLoggedIn(true);
-        window.location.href = '/dashboard';
+        router.push('/dashboard');
       } else {
         setIsLoggedIn(false);
       }
     });
-  }, []);
+  }, [router]);
 
   if (isLoggedIn === null) {
     return null; // or a loading spinner
@@ -108,7 +110,7 @@ export default function HomePage() {
           <h2 className="text-3xl font-bold text-gray-900 mb-8 text-center">How It Works</h2>
           <ol className="space-y-6 text-lg text-gray-700">
             <li><span className="font-bold text-blue-600">1.</span> Sign up and create your account.</li>
-            <li><span className="font-bold text-blue-600">2.</span> Add widgets to your dashboard for tasks, mood, finance, and more.</li>
+            <li><span className="font-bold text-blue-600">2.</span> Subscribe to services for tasks, mood, finance, and more.</li>
             <li><span className="font-bold text-blue-600">3.</span> Track your progress and get smart insights every day.</li>
             <li><span className="font-bold text-blue-600">4.</span> Enjoy a more organized, productive, and mindful life!</li>
           </ol>
@@ -162,7 +164,7 @@ export default function HomePage() {
         </Link>
       </div>
       <footer className="w-full text-center text-gray-500 py-6 border-t border-gray-200 bg-white/70 mt-auto">
-        &copy; {new Date().getFullYear()} LifeHub. All rights reserved.
+        &copy; 2024 LifeHub. All rights reserved.
       </footer>
     </div>
   );
