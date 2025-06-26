@@ -79,7 +79,27 @@ export async function PUT(request: NextRequest) {
     )
 
     const body = await request.json()
-    const { full_name, avatar_url, bio, location, website, phone, date_of_birth, preferences } = body
+    const { 
+      full_name, 
+      avatar_url, 
+      bio, 
+      location, 
+      website, 
+      phone, 
+      date_of_birth, 
+      preferences,
+      timezone,
+      language,
+      theme,
+      notification_preferences,
+      privacy_settings,
+      social_links,
+      skills,
+      interests,
+      occupation,
+      company,
+      education
+    } = body
 
     // Validate input
     const validationErrors: string[] = []
@@ -139,6 +159,17 @@ export async function PUT(request: NextRequest) {
     if (phone !== undefined) updateData.phone = phone || null
     if (date_of_birth !== undefined) updateData.date_of_birth = date_of_birth || null
     if (preferences !== undefined) updateData.preferences = preferences || {}
+    if (timezone !== undefined) updateData.timezone = timezone || 'UTC'
+    if (language !== undefined) updateData.language = language || 'en'
+    if (theme !== undefined) updateData.theme = theme || 'light'
+    if (notification_preferences !== undefined) updateData.notification_preferences = notification_preferences || {}
+    if (privacy_settings !== undefined) updateData.privacy_settings = privacy_settings || {}
+    if (social_links !== undefined) updateData.social_links = social_links || {}
+    if (skills !== undefined) updateData.skills = skills || null
+    if (interests !== undefined) updateData.interests = interests || null
+    if (occupation !== undefined) updateData.occupation = occupation?.trim() || null
+    if (company !== undefined) updateData.company = company?.trim() || null
+    if (education !== undefined) updateData.education = education?.trim() || null
 
     // Update profile
     const { data: profile, error } = await supabase

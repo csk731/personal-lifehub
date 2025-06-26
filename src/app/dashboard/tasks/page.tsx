@@ -29,7 +29,18 @@ import {
   MinusCircle
 } from 'lucide-react';
 import { getAuthHeaders } from '@/lib/utils';
+import { 
+  isDateToday, 
+  isDateOverdue, 
+  formatDateInUserTimezone, 
+  getDateStringForInput, 
+  convertDateInputToUtc,
+  getUserTimezone,
+  debugTimezone,
+  formatDatabaseDateForDisplay 
+} from '@/utils/timezone';
 import Link from 'next/link';
+import { TopBar } from '@/components/dashboard/TopBar';
 
 interface Task {
   id: string;
@@ -74,11 +85,13 @@ export default function TasksPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [showFilters, setShowFilters] = useState(false);
   const [newTask, setNewTask] = useState({
     title: '',
     description: '',
-    priority: 'medium' as const,
+    priority: 'medium' as 'low' | 'medium' | 'high' | 'urgent',
     due_date: '',
     category: 'other',
     tags: [] as string[]
@@ -87,14 +100,15 @@ export default function TasksPage() {
     status: [] as string[],
     priority: [] as string[],
     search: '',
-    category: ''
+    category: '',
+    dateFilter: 'today' as 'all' | 'today' | 'no_due_date' | 'overdue',
+    customStartDate: '',
+    customEndDate: ''
   });
-  const [sortBy, setSortBy] = useState<'due_date' | 'priority' | 'created_at'>('due_date');
+  const [sortBy, setSortBy] = useState<'due_date' | 'priority' | 'created_at' | 'title' | 'category'>('due_date');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
-  const [showCompleted, setShowCompleted] = useState(true);
-  const [selectedView, setSelectedView] = useState<'all' | 'today' | 'overdue'>('today');
-  const [swipeStates, setSwipeStates] = useState<Record<string, { x: number; isSwiping: boolean }>>({});
-  const [touchStart, setTouchStart] = useState<{ x: number; y: number } | null>(null);
+  const [showCompleted, setShowCompleted] = useState(false);
+  const [showCompletedSection, setShowCompletedSection] = useState(false);
   const [categorySuggestions, setCategorySuggestions] = useState<string[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -149,6 +163,13 @@ export default function TasksPage() {
 
       setSaving(true);
       const headers = await getAuthHeaders();
+      
+      // Fix timezone issue: convert local date to UTC using timezone utility
+      let dueDate = newTask.due_date || null;
+      if (dueDate) {
+        dueDate = convertDateInputToUtc(dueDate);
+      }
+      
       const response = await fetch('/api/tasks', {
         method: 'POST',
         headers,
@@ -156,18 +177,19 @@ export default function TasksPage() {
           title: newTask.title.trim(),
           description: newTask.description.trim() || null,
           priority: newTask.priority,
-          due_date: newTask.due_date || null,
+          due_date: dueDate,
           category: newTask.category,
-          tags: newTask.tags.filter(tag => tag.trim())
-        })
+          tags: newTask.tags
+        }),
       });
 
       if (!response.ok) {
-        throw new Error('Failed to add task');
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to add task');
       }
 
       const data = await response.json();
-      setTasks(prev => [data.task, ...prev]);
+      setTasks(prevTasks => [data.task, ...prevTasks]);
       
       // Reset form
       setNewTask({
@@ -178,15 +200,60 @@ export default function TasksPage() {
         category: 'other',
         tags: []
       });
-      setShowAddModal(false);
-      setShowSuggestions(false);
       
-      // Show success feedback
       setShowSuccess(true);
       setTimeout(() => setShowSuccess(false), 3000);
-      
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to add task');
+      console.error('Error adding task:', err);
+      alert(err instanceof Error ? err.message : 'Failed to add task');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const editTask = async () => {
+    if (!editingTask || !editingTask.title.trim()) return;
+
+    try {
+      setSaving(true);
+      const headers = await getAuthHeaders();
+      
+      // Fix timezone issue: convert local date to UTC using timezone utility
+      let dueDate = editingTask.due_date || null;
+      if (dueDate) {
+        dueDate = convertDateInputToUtc(dueDate);
+      }
+      
+      const response = await fetch(`/api/tasks/${editingTask.id}`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify({
+          title: editingTask.title.trim(),
+          description: editingTask.description?.trim() || null,
+          priority: editingTask.priority,
+          due_date: dueDate,
+          category: editingTask.category,
+          tags: editingTask.tags || []
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to update task');
+      }
+
+      const data = await response.json();
+      setTasks(prevTasks => 
+        prevTasks.map(task => 
+          task.id === editingTask.id ? data.task : task
+        )
+      );
+      setEditingTask(null);
+      setShowSuccess(true);
+      setTimeout(() => setShowSuccess(false), 3000);
+    } catch (err) {
+      console.error('Error updating task:', err);
+      alert(err instanceof Error ? err.message : 'Failed to update task');
     } finally {
       setSaving(false);
     }
@@ -229,56 +296,6 @@ export default function TasksPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete task');
     }
-  };
-
-  // Swipe gesture handlers for mobile
-  const handleTouchStart = (e: React.TouchEvent, taskId: string) => {
-    const touch = e.touches[0];
-    setTouchStart({ x: touch.clientX, y: touch.clientY });
-    setSwipeStates(prev => ({
-      ...prev,
-      [taskId]: { x: 0, isSwiping: false }
-    }));
-  };
-
-  const handleTouchMove = (e: React.TouchEvent, taskId: string) => {
-    if (!touchStart) return;
-    
-    const touch = e.touches[0];
-    const deltaX = touch.clientX - touchStart.x;
-    const deltaY = Math.abs(touch.clientY - touchStart.y);
-    
-    // Only trigger swipe if horizontal movement is greater than vertical
-    if (Math.abs(deltaX) > deltaY && Math.abs(deltaX) > 10) {
-      e.preventDefault();
-      setSwipeStates(prev => ({
-        ...prev,
-        [taskId]: { x: deltaX, isSwiping: true }
-      }));
-    }
-  };
-
-  const handleTouchEnd = (e: React.TouchEvent, taskId: string) => {
-    if (!touchStart) return;
-    
-    const touch = e.changedTouches[0];
-    const deltaX = touch.clientX - touchStart.x;
-    
-    // Swipe left to delete (deltaX < -50)
-    if (deltaX < -50) {
-      deleteTask(taskId);
-    }
-    // Swipe right to complete (deltaX > 50)
-    else if (deltaX > 50) {
-      updateTaskStatus(taskId, 'completed');
-    }
-    
-    // Reset swipe state
-    setSwipeStates(prev => ({
-      ...prev,
-      [taskId]: { x: 0, isSwiping: false }
-    }));
-    setTouchStart(null);
   };
 
   // Smart category suggestions based on title
@@ -336,22 +353,38 @@ export default function TasksPage() {
     { label: 'Home Cleaning', title: 'Home cleaning', priority: 'low', category: 'home', due_date: '' }
   ];
 
-  const filteredAndSortedTasks = () => {
-    let filtered = tasks;
-
-    // View filtering
-    if (selectedView === 'today') {
-      const today = new Date().toISOString().split('T')[0];
-      filtered = filtered.filter(task => task.due_date === today);
-    } else if (selectedView === 'overdue') {
-      const today = new Date().toISOString().split('T')[0];
-      filtered = filtered.filter(task => 
-        task.due_date && task.due_date < today && task.status !== 'completed'
-      );
+  const isTaskInDateRange = (task: Task): boolean => {
+    // Debug logging for timezone issues
+    if (task.due_date) {
+      console.log(`Task: ${task.title}`);
+      debugTimezone(task.due_date);
     }
+    
+    switch (filters.dateFilter) {
+      case 'all':
+        return true; // Show everything
+      case 'today':
+        // Show overdue + today tasks
+        if (!task.due_date) return false;
+        return isDateToday(task.due_date) || isDateOverdue(task.due_date);
+      case 'overdue':
+        // Show only overdue tasks
+        if (!task.due_date) return false;
+        return isDateOverdue(task.due_date);
+      case 'no_due_date':
+        // Show tasks with no due date
+        return !task.due_date;
+      default:
+        return true;
+    }
+  };
 
-    if (!showCompleted) {
-      filtered = filtered.filter(task => task.status !== 'completed');
+  const filteredAndSortedTasks = () => {
+    let filtered = tasks.filter(task => task.status !== 'completed'); // Always exclude completed tasks
+
+    // Date filtering
+    if (filters.dateFilter !== 'all') {
+      filtered = filtered.filter(task => isTaskInDateRange(task));
     }
 
     if (filters.status.length > 0) {
@@ -371,7 +404,8 @@ export default function TasksPage() {
       filtered = filtered.filter(task => 
         task.title.toLowerCase().includes(searchLower) ||
         task.description?.toLowerCase().includes(searchLower) ||
-        task.category?.toLowerCase().includes(searchLower)
+        task.category?.toLowerCase().includes(searchLower) ||
+        task.tags?.some(tag => tag.toLowerCase().includes(searchLower))
       );
     }
 
@@ -392,38 +426,132 @@ export default function TasksPage() {
           aValue = new Date(a.created_at).getTime();
           bValue = new Date(b.created_at).getTime();
           break;
+        case 'title':
+          aValue = a.title.toLowerCase();
+          bValue = b.title.toLowerCase();
+          break;
+        case 'category':
+          aValue = a.category?.toLowerCase() || '';
+          bValue = b.category?.toLowerCase() || '';
+          break;
         default:
           return 0;
       }
 
+      // For string values (title, category), use localeCompare for proper sorting
+      if (typeof aValue === 'string' && typeof bValue === 'string') {
+        const comparison = aValue.localeCompare(bValue);
+        return sortOrder === 'asc' ? comparison : -comparison;
+      }
+
+      // For numeric values (date, priority), use numeric comparison
       return sortOrder === 'asc' ? aValue - bValue : bValue - aValue;
     });
 
     return filtered;
   };
 
+  const getCompletedTasks = () => {
+    let completed = tasks.filter(task => task.status === 'completed');
+
+    if (filters.search) {
+      const searchLower = filters.search.toLowerCase();
+      completed = completed.filter(task => 
+        task.title.toLowerCase().includes(searchLower) ||
+        task.description?.toLowerCase().includes(searchLower) ||
+        task.category?.toLowerCase().includes(searchLower)
+      );
+    }
+
+    if (filters.category) {
+      completed = completed.filter(task => task.category === filters.category);
+    }
+
+    // Sort completed tasks by completion date (most recent first)
+    completed.sort((a, b) => {
+      const aValue = new Date(a.updated_at).getTime();
+      const bValue = new Date(b.updated_at).getTime();
+      return bValue - aValue; // Most recent first
+    });
+
+    return completed;
+  };
+
   const getTaskStats = () => {
     if (tasks.length === 0) return null;
 
-    const total = tasks.length;
-    const completed = tasks.filter(t => t.status === 'completed').length;
-    const pending = tasks.filter(t => t.status === 'pending').length;
-    const inProgress = tasks.filter(t => t.status === 'in_progress').length;
-    const urgent = tasks.filter(t => t.priority === 'urgent').length;
-    const overdue = tasks.filter(t => {
+    // Get filtered tasks based on current filters
+    const allFilteredTasks = tasks.filter(task => {
+      // Apply date filter
+      if (filters.dateFilter !== 'all' && !isTaskInDateRange(task)) {
+        return false;
+      }
+
+      // Apply search filter
+      if (filters.search) {
+        const searchLower = filters.search.toLowerCase();
+        if (!task.title.toLowerCase().includes(searchLower) &&
+            !task.description?.toLowerCase().includes(searchLower) &&
+            !task.category?.toLowerCase().includes(searchLower) &&
+            !task.tags?.some(tag => tag.toLowerCase().includes(searchLower))) {
+          return false;
+        }
+      }
+
+      // Apply category filter
+      if (filters.category && task.category !== filters.category) {
+        return false;
+      }
+
+      // Apply status filter
+      if (filters.status.length > 0 && !filters.status.includes(task.status)) {
+        return false;
+      }
+
+      // Apply priority filter
+      if (filters.priority.length > 0 && !filters.priority.includes(task.priority)) {
+        return false;
+      }
+
+      return true;
+    });
+
+    const total = allFilteredTasks.length;
+    const completed = allFilteredTasks.filter(t => t.status === 'completed').length;
+    const pending = allFilteredTasks.filter(t => t.status === 'pending').length;
+    const inProgress = allFilteredTasks.filter(t => t.status === 'in_progress').length;
+    const urgent = allFilteredTasks.filter(t => t.priority === 'urgent').length;
+    const overdue = allFilteredTasks.filter(t => {
       if (!t.due_date || t.status === 'completed') return false;
-      return new Date(t.due_date) < new Date();
-    }).length;
-    const today = tasks.filter(t => {
-      if (!t.due_date) return false;
-      return t.due_date === new Date().toISOString().split('T')[0];
+      return isDateOverdue(t.due_date);
     }).length;
 
-    return { total, completed, pending, inProgress, urgent, overdue, today };
+    return { total, completed, pending, inProgress, urgent, overdue };
+  };
+
+  const getFilterLabel = () => {
+    if (filters.search) {
+      return "Search Results";
+    }
+    
+    switch (filters.dateFilter) {
+      case 'all':
+        return "All";
+      case 'today':
+        return "Today & Overdue";
+      case 'overdue':
+        return "Overdue";
+      case 'no_due_date':
+        return "No Due Date";
+      default:
+        return "All";
+    }
   };
 
   const stats = getTaskStats();
   const displayTasks = filteredAndSortedTasks();
+  const completedTasks = getCompletedTasks();
+  const filterLabel = getFilterLabel();
 
   const renderQuickStats = () => {
     if (!stats) return null;
@@ -436,7 +564,7 @@ export default function TasksPage() {
               <ListTodo className="w-4 h-4 text-blue-600" />
             </div>
             <div>
-              <p className="text-xs text-gray-500 uppercase tracking-wide">Total</p>
+              <p className="text-xs text-gray-500 uppercase tracking-wide">{filterLabel} Total</p>
               <p className="text-xl font-bold text-gray-900">{stats.total}</p>
             </div>
           </div>
@@ -448,7 +576,7 @@ export default function TasksPage() {
               <CheckCircle className="w-4 h-4 text-green-600" />
             </div>
             <div>
-              <p className="text-xs text-gray-500 uppercase tracking-wide">Completed</p>
+              <p className="text-xs text-gray-500 uppercase tracking-wide">{filterLabel} Completed</p>
               <p className="text-xl font-bold text-green-600">{stats.completed}</p>
             </div>
           </div>
@@ -460,7 +588,7 @@ export default function TasksPage() {
               <AlertCircle className="w-4 h-4 text-red-600" />
             </div>
             <div>
-              <p className="text-xs text-gray-500 uppercase tracking-wide">Overdue</p>
+              <p className="text-xs text-gray-500 uppercase tracking-wide">{filterLabel} Overdue</p>
               <p className="text-xl font-bold text-red-600">{stats.overdue}</p>
             </div>
           </div>
@@ -472,7 +600,7 @@ export default function TasksPage() {
               <Zap className="w-4 h-4 text-orange-600" />
             </div>
             <div>
-              <p className="text-xs text-gray-500 uppercase tracking-wide">Urgent</p>
+              <p className="text-xs text-gray-500 uppercase tracking-wide">{filterLabel} Urgent</p>
               <p className="text-xl font-bold text-orange-600">{stats.urgent}</p>
             </div>
           </div>
@@ -488,37 +616,17 @@ export default function TasksPage() {
           const priorityColor = priorityColors[task.priority];
           const statusColor = statusColors[task.status];
           const categoryIcon = categoryIcons[task.category as keyof typeof categoryIcons] || categoryIcons.other;
-          const swipeState = swipeStates[task.id] || { x: 0, isSwiping: false };
-          const isOverdue = task.due_date && new Date(task.due_date) < new Date() && task.status !== 'completed';
           
           return (
             <div 
               key={task.id} 
               className="relative overflow-hidden"
-              onTouchStart={(e) => handleTouchStart(e, task.id)}
-              onTouchMove={(e) => handleTouchMove(e, task.id)}
-              onTouchEnd={(e) => handleTouchEnd(e, task.id)}
             >
-              {/* Swipe Action Indicators */}
-              <div className="absolute inset-y-0 left-0 w-16 bg-green-500 flex items-center justify-center transform -translate-x-full transition-transform duration-200"
-                   style={{ transform: `translateX(${Math.max(swipeState.x - 50, -64)}px)` }}>
-                <CheckCircle className="w-6 h-6 text-white" />
-              </div>
-              
-              <div className="absolute inset-y-0 right-0 w-16 bg-red-500 flex items-center justify-center transform translate-x-full transition-transform duration-200"
-                   style={{ transform: `translateX(${Math.min(swipeState.x + 50, 64)}px)` }}>
-                <Trash2 className="w-6 h-6 text-white" />
-              </div>
-              
               {/* Main Task Card */}
               <div 
                 className={`bg-white rounded-lg p-3 shadow-sm border transition-all duration-200 group relative transform ${
-                  isOverdue ? 'border-red-200 bg-red-50' : 'border-gray-100 hover:shadow-md'
+                  task.due_date && isDateOverdue(task.due_date) && task.status !== 'completed' ? 'border-red-200 bg-red-50' : 'border-gray-100 hover:shadow-md'
                 }`}
-                style={{ 
-                  transform: `translateX(${swipeState.x}px)`,
-                  transition: swipeState.isSwiping ? 'none' : 'transform 0.2s ease-out'
-                }}
               >
                 <div className="flex items-start space-x-3">
                   {/* Status Checkbox */}
@@ -577,22 +685,23 @@ export default function TasksPage() {
                           {/* Due Date */}
                           {task.due_date && (
                             <div className={`flex items-center space-x-1 text-xs ${
-                              isOverdue ? 'text-red-600' : 'text-gray-500'
+                              task.due_date && isDateOverdue(task.due_date) ? 'text-red-600' : 'text-gray-500'
                             }`}>
                               <Calendar className="w-3 h-3" />
-                              <span>{new Date(task.due_date).toLocaleDateString()}</span>
-                              {isOverdue && <span className="text-red-500">(Overdue)</span>}
+                              <span>{formatDatabaseDateForDisplay(task.due_date)}</span>
+                              {task.due_date && isDateOverdue(task.due_date) && <span className="text-red-500">(Overdue)</span>}
                             </div>
                           )}
                         </div>
                       </div>
                       
-                      {/* Quick Actions - Hidden on mobile, shown on desktop */}
-                      <div className="hidden md:flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity ml-2">
+                      {/* Quick Actions - Always visible */}
+                      <div className="flex items-center space-x-1 ml-2">
                         <button
-                          onClick={() => {
-                            // TODO: Implement edit functionality
-                            console.log('Edit task:', task.id);
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditingTask(task);
+                            setShowEditModal(true);
                           }}
                           className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
                           title="Edit task"
@@ -600,7 +709,10 @@ export default function TasksPage() {
                           <Edit3 className="w-3 h-3" />
                         </button>
                         <button
-                          onClick={() => deleteTask(task.id)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            deleteTask(task.id);
+                          }}
                           className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
                           title="Delete task"
                         >
@@ -614,11 +726,94 @@ export default function TasksPage() {
                 {/* Hover indicator */}
                 <div className="absolute inset-0 border-2 border-transparent group-hover:border-blue-200 rounded-lg pointer-events-none transition-colors"></div>
               </div>
-              
-              {/* Mobile Swipe Hint */}
-              <div className="md:hidden absolute inset-0 pointer-events-none flex items-center justify-between px-4 opacity-0 group-hover:opacity-100 transition-opacity">
-                <div className="text-xs text-gray-400">← Swipe to complete</div>
-                <div className="text-xs text-gray-400">Swipe to delete →</div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
+  const renderCompletedTasks = () => {
+    if (completedTasks.length === 0) return null;
+
+    return (
+      <div className="space-y-2">
+        {completedTasks.map((task) => {
+          const priorityColor = priorityColors[task.priority];
+          const categoryIcon = categoryIcons[task.category as keyof typeof categoryIcons] || categoryIcons.other;
+          
+          return (
+            <div 
+              key={task.id} 
+              className="bg-gray-50 rounded-lg p-3 border border-green-200 hover:border-green-300 transition-colors"
+            >
+              <div className="flex items-start space-x-3">
+                {/* Task Content */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center space-x-2 mb-1">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">
+                          <CheckCircle className="w-3 h-3 mr-1" />
+                          Completed
+                        </span>
+                      </div>
+                      <h4 className="text-sm font-medium truncate line-through text-gray-500">
+                        {task.title}
+                      </h4>
+                      {task.description && (
+                        <p className="text-xs text-gray-500 truncate mt-1 line-through">
+                          {task.description}
+                        </p>
+                      )}
+                      
+                      {/* Task Meta */}
+                      <div className="flex items-center space-x-2 mt-2">
+                        {/* Priority */}
+                        <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium ${priorityColor.bg} ${priorityColor.text}`}>
+                          <span className="mr-1">{priorityColor.emoji}</span>
+                          {task.priority}
+                        </span>
+                        
+                        {/* Category */}
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
+                          <span className="mr-1">{categoryIcon.emoji}</span>
+                          {task.category}
+                        </span>
+                        
+                        {/* Completion Date */}
+                        <div className="flex items-center space-x-1 text-xs text-green-600">
+                          <CheckCircle className="w-3 h-3" />
+                          <span>Completed {formatDatabaseDateForDisplay(task.updated_at)}</span>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Action Buttons */}
+                    <div className="flex items-center space-x-1 ml-2">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          updateTaskStatus(task.id, 'pending');
+                        }}
+                        className="p-1 text-green-600 hover:text-green-700 hover:bg-green-50 rounded transition-colors"
+                        title="Undo completion"
+                      >
+                        <CheckCircle className="w-3 h-3" />
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          deleteTask(task.id);
+                        }}
+                        className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                        title="Delete task"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           );
@@ -639,18 +834,13 @@ export default function TasksPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <>
+      <TopBar isLoggedIn={true} />
+      <div className="min-h-screen bg-gray-50 pt-20">
       <div className="max-w-6xl mx-auto p-4">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center space-x-4">
-            <Link
-              href="/"
-              className="flex items-center space-x-2 text-gray-600 hover:text-gray-900 transition-colors"
-            >
-              <ArrowLeft className="w-5 h-5" />
-              <span className="text-sm">Back</span>
-            </Link>
             <div>
               <h1 className="text-2xl font-bold text-gray-900">Tasks</h1>
               <p className="text-sm text-gray-600">Manage your tasks</p>
@@ -684,40 +874,6 @@ export default function TasksPage() {
 
         {/* Quick Stats */}
         {renderQuickStats()}
-
-        {/* View Toggle */}
-        <div className="flex items-center space-x-2 mb-6">
-          <button
-            onClick={() => setSelectedView('all')}
-            className={`px-3 py-1 text-sm rounded-lg transition-colors ${
-              selectedView === 'all' 
-                ? 'bg-blue-600 text-white' 
-                : 'bg-white text-gray-600 hover:text-gray-900'
-            }`}
-          >
-            All Tasks
-          </button>
-          <button
-            onClick={() => setSelectedView('today')}
-            className={`px-3 py-1 text-sm rounded-lg transition-colors ${
-              selectedView === 'today' 
-                ? 'bg-blue-600 text-white' 
-                : 'bg-white text-gray-600 hover:text-gray-900'
-            }`}
-          >
-            Today ({stats?.today || 0})
-          </button>
-          <button
-            onClick={() => setSelectedView('overdue')}
-            className={`px-3 py-1 text-sm rounded-lg transition-colors ${
-              selectedView === 'overdue' 
-                ? 'bg-blue-600 text-white' 
-                : 'bg-white text-gray-600 hover:text-gray-900'
-            }`}
-          >
-            Overdue ({stats?.overdue || 0})
-          </button>
-        </div>
 
         {/* Compact Filters */}
         {showFilters && (
@@ -767,54 +923,210 @@ export default function TasksPage() {
                 <SortAsc className={`w-4 h-4 ${sortOrder === 'desc' ? 'rotate-180' : ''}`} />
               </button>
             </div>
-            
-            <div className="flex items-center space-x-4 mt-4">
-              <label className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  checked={showCompleted}
-                  onChange={(e) => setShowCompleted(e.target.checked)}
-                  className="rounded"
-                />
-                <span className="text-sm text-gray-700">Show completed tasks</span>
-              </label>
-            </div>
           </div>
         )}
 
-        {/* Tasks */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-100">
-          <div className="p-4 border-b border-gray-100">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-gray-900">Tasks</h2>
-              <div className="text-sm text-gray-500">
-                {displayTasks.length} of {tasks.length} tasks
+          {/* Active Tasks */}
+          <div className="bg-white rounded-lg shadow-sm border border-gray-100 mb-6">
+            <div className="p-4 border-b border-gray-100">
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-lg font-semibold text-gray-900">Active Tasks</h2>
+                <div className="flex items-center space-x-2">
+                  <select
+                    value={sortBy}
+                    onChange={(e) => setSortBy(e.target.value as any)}
+                    className="px-2 py-1 text-xs border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  >
+                    <option value="due_date">Due Date</option>
+                    <option value="priority">Priority</option>
+                    <option value="created_at">Created</option>
+                    <option value="title">Title</option>
+                    <option value="category">Category</option>
+                  </select>
+                  <button
+                    onClick={() => setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')}
+                    className="p-1 text-gray-400 hover:text-gray-600"
+                  >
+                    <SortAsc className={`w-3 h-3 ${sortOrder === 'desc' ? 'rotate-180' : ''}`} />
+                  </button>
+                </div>
+              </div>
+              
+              {/* Search and Filter Row */}
+              <div className="flex items-center space-x-3 mb-3">
+                <div className="flex-1">
+                  <input
+                    type="text"
+                    placeholder="Search tasks..."
+                    value={filters.search}
+                    onChange={(e) => setFilters(prev => ({ ...prev, search: e.target.value }))}
+                    className="w-full px-3 py-1 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+                <select
+                  value={filters.category}
+                  onChange={(e) => setFilters(prev => ({ ...prev, category: e.target.value }))}
+                  className="px-3 py-1 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="">All Categories</option>
+                  <option value="work">Work</option>
+                  <option value="personal">Personal</option>
+                  <option value="health">Health</option>
+                  <option value="finance">Finance</option>
+                  <option value="shopping">Shopping</option>
+                  <option value="home">Home</option>
+                  <option value="study">Study</option>
+                  <option value="other">Other</option>
+                </select>
+                <select
+                  value={filters.status.length > 0 ? filters.status[0] : ''}
+                  onChange={(e) => setFilters(prev => ({ 
+                    ...prev, 
+                    status: e.target.value ? [e.target.value] : [] 
+                  }))}
+                  className="px-3 py-1 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="">All Status</option>
+                  <option value="pending">Pending</option>
+                  <option value="in_progress">In Progress</option>
+                </select>
+                <select
+                  value={filters.priority.length > 0 ? filters.priority[0] : ''}
+                  onChange={(e) => setFilters(prev => ({ 
+                    ...prev, 
+                    priority: e.target.value ? [e.target.value] : [] 
+                  }))}
+                  className="px-3 py-1 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="">All Priority</option>
+                  <option value="low">Low</option>
+                  <option value="medium">Medium</option>
+                  <option value="high">High</option>
+                  <option value="urgent">Urgent</option>
+                </select>
+                <button
+                  onClick={() => {
+                    setFilters({
+                      status: [],
+                      priority: [],
+                      search: '',
+                      category: '',
+                      dateFilter: 'all',
+                      customStartDate: '',
+                      customEndDate: ''
+                    });
+                    setSortBy('due_date');
+                    setSortOrder('asc');
+                  }}
+                  className="px-3 py-1 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  Clear
+                </button>
+              </div>
+              
+              {/* Results Count */}
+              <div className="flex items-center justify-between">
+                <div className="text-sm text-gray-600">
+                  Showing {displayTasks.length} of {tasks.filter(t => t.status !== 'completed').length} active tasks
+                  {(filters.search || filters.category || filters.status.length > 0 || filters.priority.length > 0) && (
+                    <span className="text-blue-600 ml-1">(filtered)</span>
+                  )}
+                </div>
+                <div className="text-sm text-gray-500">
+                  Sorted by {sortBy} ({sortOrder === 'asc' ? 'ascending' : 'descending'})
+                </div>
+              </div>
+              
+              {/* Date Filter Buttons */}
+              <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-gray-100">
+                <button
+                  className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${filters.dateFilter === 'all' ? 'bg-blue-600 text-white' : 'bg-white text-gray-700 border border-gray-200 hover:bg-blue-50'}`}
+                  onClick={() => setFilters(f => ({ ...f, dateFilter: 'all' }))}
+                >
+                  All
+                </button>
+                <button
+                  className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${filters.dateFilter === 'today' ? 'bg-blue-600 text-white' : 'bg-white text-gray-700 border border-gray-200 hover:bg-blue-50'}`}
+                  onClick={() => setFilters(f => ({ ...f, dateFilter: 'today' }))}
+                >
+                  Today
+                </button>
+                <button
+                  className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${filters.dateFilter === 'no_due_date' ? 'bg-blue-600 text-white' : 'bg-white text-gray-700 border border-gray-200 hover:bg-blue-50'}`}
+                  onClick={() => setFilters(f => ({ ...f, dateFilter: 'no_due_date' }))}
+                >
+                  No Due Date
+                </button>
+                <button
+                  className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${filters.dateFilter === 'overdue' ? 'bg-blue-600 text-white' : 'bg-white text-gray-700 border border-gray-200 hover:bg-blue-50'}`}
+                  onClick={() => setFilters(f => ({ ...f, dateFilter: 'overdue' }))}
+                >
+                  Overdue
+                </button>
               </div>
             </div>
+            
+            <div className="p-4">
+              {displayTasks.length === 0 ? (
+                <div className="text-center py-12">
+                  <div className="text-4xl mb-4">📋</div>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">No active tasks found</h3>
+                  <p className="text-gray-600 mb-6">
+                      {tasks.filter(t => t.status !== 'completed').length === 0 ? 'Start organizing your tasks' : 'No tasks match your filters'}
+                  </p>
+                    {tasks.filter(t => t.status !== 'completed').length === 0 && (
+                    <button
+                      onClick={() => setShowAddModal(true)}
+                      className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                    >
+                      Add Your First Task
+                    </button>
+                  )}
+                </div>
+              ) : (
+                renderCompactTasks()
+              )}
+            </div>
           </div>
-          
-          <div className="p-4">
-            {displayTasks.length === 0 ? (
-              <div className="text-center py-12">
-                <div className="text-4xl mb-4">📋</div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">No tasks found</h3>
-                <p className="text-gray-600 mb-6">
-                  {tasks.length === 0 ? 'Start organizing your tasks' : 'No tasks match your filters'}
-                </p>
-                {tasks.length === 0 && (
-                  <button
-                    onClick={() => setShowAddModal(true)}
-                    className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                  >
-                    Add Your First Task
-                  </button>
-                )}
+
+          {/* Completed Tasks Section */}
+          {showCompletedSection && completedTasks.length > 0 && (
+            <div className="bg-white rounded-lg shadow-sm border border-gray-100">
+              <div className="p-4 border-b border-gray-100">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-lg font-semibold text-gray-900">Completed Tasks</h2>
+                  <div className="flex items-center space-x-2">
+                    <div className="text-sm text-gray-500">
+                      {completedTasks.length} completed
+                    </div>
+                    <button
+                      onClick={() => setShowCompletedSection(false)}
+                      className="text-gray-400 hover:text-gray-600 transition-colors"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
               </div>
-            ) : (
-              renderCompactTasks()
-            )}
-          </div>
-        </div>
+              
+              <div className="p-4">
+                {renderCompletedTasks()}
+              </div>
+            </div>
+          )}
+
+          {/* Show Completed Tasks Button (when hidden) */}
+          {!showCompletedSection && completedTasks.length > 0 && (
+            <div className="text-center py-4">
+              <button
+                onClick={() => setShowCompletedSection(true)}
+                className="inline-flex items-center space-x-2 px-4 py-2 text-sm text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+              >
+                <CheckCircle className="w-4 h-4" />
+                <span>Show {completedTasks.length} completed tasks</span>
+              </button>
+            </div>
+          )}
       </div>
 
       {/* Add Task Modal */}
@@ -947,7 +1259,7 @@ export default function TasksPage() {
                     <select
                       id="task-priority"
                       value={newTask.priority}
-                      onChange={(e) => setNewTask(prev => ({ ...prev, priority: e.target.value as any }))}
+                      onChange={(e) => setNewTask(prev => ({ ...prev, priority: e.target.value as 'low' | 'medium' | 'high' | 'urgent' }))}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
                     >
                       <option value="low">🟢 Low</option>
@@ -987,8 +1299,7 @@ export default function TasksPage() {
                     type="date"
                     value={newTask.due_date}
                     onChange={(e) => setNewTask(prev => ({ ...prev, due_date: e.target.value }))}
-                    min={new Date().toISOString().split('T')[0]}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
                 
@@ -1028,6 +1339,147 @@ export default function TasksPage() {
           </div>
         </div>
       )}
+
+        {/* Edit Task Modal */}
+        {showEditModal && editingTask && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-xl shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
+              <div className="p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold text-gray-900">Edit Task</h3>
+                  <button
+                    onClick={() => setShowEditModal(false)}
+                    className="text-gray-400 hover:text-gray-600 transition-colors"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+                
+                <form onSubmit={(e) => { e.preventDefault(); editTask(); }}>
+                  {/* Title */}
+                  <div className="mb-4">
+                    <label htmlFor="task-title" className="block text-sm font-medium text-gray-700 mb-2">
+                      Task Title *
+                    </label>
+                    <input
+                      id="task-title"
+                      type="text"
+                      value={editingTask.title}
+                      onChange={(e) => {
+                        const title = e.target.value;
+                        setEditingTask(prev => prev ? { ...prev, title } : null);
+                      }}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                      placeholder="What needs to be done?"
+                      autoFocus
+                    />
+                  </div>
+                  
+                  {/* Description */}
+                  <div className="mb-4">
+                    <label htmlFor="task-description" className="block text-sm font-medium text-gray-700 mb-2">
+                      Description
+                    </label>
+                    <textarea
+                      id="task-description"
+                      value={editingTask.description}
+                      onChange={(e) => setEditingTask(prev => ({ ...prev, description: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors resize-none"
+                      rows={3}
+                      placeholder="Add details about this task..."
+                    />
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-4 mb-4">
+                    {/* Priority */}
+                    <div>
+                      <label htmlFor="task-priority" className="block text-sm font-medium text-gray-700 mb-2">
+                        Priority
+                      </label>
+                      <select
+                        id="task-priority"
+                        value={editingTask.priority}
+                        onChange={(e) => setEditingTask(prev => ({ ...prev, priority: e.target.value as 'low' | 'medium' | 'high' | 'urgent' }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                      >
+                        <option value="low">🟢 Low</option>
+                        <option value="medium">🟡 Medium</option>
+                        <option value="high">🟠 High</option>
+                        <option value="urgent">🔴 Urgent</option>
+                      </select>
+                    </div>
+                    
+                    {/* Category */}
+                    <div>
+                      <label htmlFor="task-category" className="block text-sm font-medium text-gray-700 mb-2">
+                        Category
+                      </label>
+                      <select
+                        id="task-category"
+                        value={editingTask.category}
+                        onChange={(e) => setEditingTask(prev => ({ ...prev, category: e.target.value }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                      >
+                        {Object.entries(categoryIcons).map(([key, icon]) => (
+                          <option key={key} value={key}>
+                            {icon.emoji} {key.charAt(0).toUpperCase() + key.slice(1)}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                  
+                  {/* Due Date */}
+                  <div className="mb-6">
+                    <label htmlFor="task-due-date" className="block text-sm font-medium text-gray-700 mb-2">
+                      Due Date
+                    </label>
+                    <input
+                      id="task-due-date"
+                      type="date"
+                      value={editingTask.due_date}
+                      onChange={(e) => setEditingTask(prev => ({ ...prev, due_date: e.target.value }))}
+                      min={new Date().toISOString().split('T')[0]}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  
+                  {/* Action Buttons */}
+                  <div className="flex items-center justify-end space-x-3">
+                    <button
+                      type="button"
+                      onClick={() => setShowEditModal(false)}
+                      className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={!editingTask.title.trim() || saving}
+                      className={`px-4 py-2 text-white rounded-lg transition-colors flex items-center space-x-2 ${
+                        !editingTask.title.trim() || saving
+                          ? 'bg-gray-400 cursor-not-allowed'
+                          : 'bg-blue-600 hover:bg-blue-700'
+                      }`}
+                    >
+                      {saving ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                          <span>Saving...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Edit3 className="w-4 h-4" />
+                          <span>Save Changes</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </div>
+        )}
 
       {/* Success Notification */}
       {showSuccess && (
@@ -1077,5 +1529,6 @@ export default function TasksPage() {
         </div>
       )}
     </div>
+    </>
   );
 } 

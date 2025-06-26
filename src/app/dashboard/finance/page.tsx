@@ -28,7 +28,15 @@ import {
   Edit3
 } from 'lucide-react';
 import { getAuthHeaders } from '@/lib/utils';
+import { 
+  formatDateInUserTimezone, 
+  getDateStringForInput, 
+  convertDateInputToUtc,
+  getUserTimezone,
+  formatDatabaseDateForDisplay 
+} from '@/utils/timezone';
 import Link from 'next/link';
+import { TopBar } from '@/components/dashboard/TopBar';
 
 interface FinanceEntry {
   id: string;
@@ -58,15 +66,26 @@ type DateFilter = 'today' | 'week' | 'month' | 'quarter' | 'year' | 'custom';
 export default function FinancePage() {
   const [financeEntries, setFinanceEntries] = useState<FinanceEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [transactionsLoading, setTransactionsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
-  const [showFilters, setShowFilters] = useState(false);
+  const [showSuccess, setShowSuccess] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingEntry, setEditingEntry] = useState<FinanceEntry | null>(null);
+  const [sortBy, setSortBy] = useState<'date' | 'amount' | 'type' | 'category'>('date');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [selectedView, setSelectedView] = useState<'list' | 'charts'>('list');
+  const [showBalance, setShowBalance] = useState(true);
+  const [quickActionEntry, setQuickActionEntry] = useState<{ id: string; x: number; y: number } | null>(null);
+  const [categorySuggestions, setCategorySuggestions] = useState<string[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
   const [newEntry, setNewEntry] = useState({
     amount: '',
     type: 'expense' as const,
     category: 'other',
     description: '',
-    date: new Date().toISOString().split('T')[0]
+    date: getDateStringForInput()
   });
   const [filters, setFilters] = useState({
     search: '',
@@ -76,41 +95,30 @@ export default function FinancePage() {
     customStartDate: '',
     customEndDate: ''
   });
-  const [sortBy, setSortBy] = useState<'date' | 'amount'>('date');
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
-  const [selectedView, setSelectedView] = useState<'list' | 'charts'>('list');
-  const [showBalance, setShowBalance] = useState(true);
-  const [quickActionEntry, setQuickActionEntry] = useState<{ id: string; x: number; y: number } | null>(null);
-  const [swipeStates, setSwipeStates] = useState<Record<string, { x: number; isSwiping: boolean }>>({});
-  const [touchStart, setTouchStart] = useState<{ x: number; y: number } | null>(null);
-  const [categorySuggestions, setCategorySuggestions] = useState<string[]>([]);
-  const [showSuggestions, setShowSuggestions] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [showSuccess, setShowSuccess] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(20);
 
   useEffect(() => {
     fetchFinanceEntries();
-  }, [filters.dateFilter, filters.customStartDate, filters.customEndDate]);
+  }, []);
 
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (showAddModal) return;
-      
-      if (e.code === 'Space' && !showAddModal) {
+      if (e.code === 'Space' && !e.ctrlKey && !e.metaKey) {
         e.preventDefault();
         setShowAddModal(true);
-      }
-      
-      if (e.code === 'KeyF' && e.ctrlKey) {
-        e.preventDefault();
-        setShowFilters(!showFilters);
       }
     };
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [showAddModal, showFilters]);
+  }, [showAddModal]);
+
+  // Reset pagination when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filters.search, filters.type, filters.category, filters.dateFilter, filters.customStartDate, filters.customEndDate, sortBy, sortOrder]);
 
   const fetchFinanceEntries = async () => {
     try {
@@ -126,6 +134,7 @@ export default function FinancePage() {
       } else {
         const days = getDaysForFilter(filters.dateFilter);
         params.append('days', days.toString());
+        params.append('timezone', getUserTimezone());
       }
       
       if (filters.type) params.append('type', filters.type);
@@ -148,23 +157,88 @@ export default function FinancePage() {
     }
   };
 
+  const refreshTransactions = async () => {
+    try {
+      setTransactionsLoading(true);
+      const headers = await getAuthHeaders();
+      
+      let url = '/api/finance';
+      const params = new URLSearchParams();
+      
+      if (filters.dateFilter === 'custom' && filters.customStartDate && filters.customEndDate) {
+        params.append('start_date', filters.customStartDate);
+        params.append('end_date', filters.customEndDate);
+      } else {
+        const days = getDaysForFilter(filters.dateFilter);
+        params.append('days', days.toString());
+        params.append('timezone', getUserTimezone());
+      }
+      
+      if (filters.type) params.append('type', filters.type);
+      if (filters.category) params.append('category', filters.category);
+      
+      if (params.toString()) url += `?${params.toString()}`;
+      
+      const response = await fetch(url, { headers });
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch finance entries');
+      }
+      
+      const data = await response.json();
+      setFinanceEntries(data.entries || []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load finance entries');
+    } finally {
+      setTransactionsLoading(false);
+    }
+  };
+
   const getDaysForFilter = (filter: DateFilter): number => {
+    const today = new Date();
+    
     switch (filter) {
-      case 'today': return 1;
-      case 'week': return 7;
-      case 'month': return 30;
-      case 'quarter': return 90;
-      case 'year': return 365;
-      default: return 30;
+      case 'today': 
+        return 1;
+      case 'week': 
+        return 7;
+      case 'month': {
+        // This month (from 1st to today)
+        const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+        const daysDiff = Math.ceil((today.getTime() - firstDayOfMonth.getTime()) / (1000 * 60 * 60 * 24));
+        return daysDiff + 1;
+      }
+      case 'quarter': {
+        // Last 3 calendar months
+        const threeMonthsAgo = new Date(today.getFullYear(), today.getMonth() - 3, today.getDate());
+        const daysDiff = Math.ceil((today.getTime() - threeMonthsAgo.getTime()) / (1000 * 60 * 60 * 24));
+        return daysDiff;
+      }
+      case 'year': {
+        // This year (from Jan 1st to today)
+        const firstDayOfYear = new Date(today.getFullYear(), 0, 1);
+        const daysDiff = Math.ceil((today.getTime() - firstDayOfYear.getTime()) / (1000 * 60 * 60 * 24));
+        return daysDiff + 1;
+      }
+      default: 
+        return 30;
     }
   };
 
   const addFinanceEntry = async () => {
     try {
-      if (!newEntry.amount || parseFloat(newEntry.amount) <= 0) return;
+      if (!newEntry.amount || !newEntry.category || !newEntry.date) {
+        setError('Please fill in all required fields');
+        return;
+      }
 
       setSaving(true);
+      setError(null);
       const headers = await getAuthHeaders();
+      
+      // Convert date to UTC for API
+      const dateForApi = convertDateInputToUtc(newEntry.date);
+
       const response = await fetch('/api/finance', {
         method: 'POST',
         headers,
@@ -173,28 +247,33 @@ export default function FinancePage() {
           type: newEntry.type,
           category: newEntry.category,
           description: newEntry.description.trim() || null,
-          date: newEntry.date
-        })
+          date: dateForApi,
+        }),
       });
 
       if (!response.ok) {
-        throw new Error('Failed to add finance entry');
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to add entry');
       }
 
       const data = await response.json();
       setFinanceEntries(prev => [data.entry, ...prev]);
+      
+      // Reset form
       setNewEntry({
         amount: '',
         type: 'expense',
         category: 'other',
         description: '',
-        date: new Date().toISOString().split('T')[0]
+        date: getDateStringForInput()
       });
       setShowAddModal(false);
+      setShowSuggestions(false);
+      
       setShowSuccess(true);
       setTimeout(() => setShowSuccess(false), 3000);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to add finance entry');
+      setError(err instanceof Error ? err.message : 'Failed to add entry');
     } finally {
       setSaving(false);
     }
@@ -218,6 +297,59 @@ export default function FinancePage() {
     }
   };
 
+  const editFinanceEntry = async () => {
+    if (!editingEntry) return;
+
+    try {
+      setSaving(true);
+      setError(null);
+      const headers = await getAuthHeaders();
+      
+      // Convert date to UTC for API
+      const dateForApi = convertDateInputToUtc(editingEntry.date);
+
+      const response = await fetch(`/api/finance/${editingEntry.id}`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify({
+          amount: editingEntry.amount,
+          type: editingEntry.type,
+          category: editingEntry.category,
+          description: editingEntry.description?.trim() || null,
+          date: dateForApi,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to update entry');
+      }
+
+      const data = await response.json();
+      setFinanceEntries(prev => 
+        prev.map(entry => 
+          entry.id === editingEntry.id ? data.entry : entry
+        )
+      );
+      setEditingEntry(null);
+      setShowEditModal(false);
+      setShowSuccess(true);
+      setTimeout(() => setShowSuccess(false), 3000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update entry');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const openEditModal = (entry: FinanceEntry) => {
+    setEditingEntry({
+      ...entry,
+      date: getDateStringForInput(entry.date)
+    });
+    setShowEditModal(true);
+  };
+
   const filteredAndSortedEntries = () => {
     let filtered = financeEntries;
 
@@ -225,7 +357,8 @@ export default function FinancePage() {
       const searchLower = filters.search.toLowerCase();
       filtered = filtered.filter(entry => 
         entry.description?.toLowerCase().includes(searchLower) ||
-        entry.category?.toLowerCase().includes(searchLower)
+        entry.category?.toLowerCase().includes(searchLower) ||
+        entry.amount.toString().includes(searchLower)
       );
     }
 
@@ -249,29 +382,58 @@ export default function FinancePage() {
           aValue = a.amount;
           bValue = b.amount;
           break;
+        case 'type':
+          aValue = a.type;
+          bValue = b.type;
+          break;
+        case 'category':
+          aValue = a.category;
+          bValue = b.category;
+          break;
         default:
           return 0;
       }
 
+      // For string values (type, category), use localeCompare for proper sorting
+      if (typeof aValue === 'string' && typeof bValue === 'string') {
+        const comparison = aValue.localeCompare(bValue);
+        return sortOrder === 'asc' ? comparison : -comparison;
+      }
+
+      // For numeric values (date, amount), use numeric comparison
       return sortOrder === 'asc' ? aValue - bValue : bValue - aValue;
     });
 
     return filtered;
   };
 
+  const getAllFilteredEntries = () => {
+    return filteredAndSortedEntries();
+  };
+
+  const getPaginatedEntries = () => {
+    const allEntries = filteredAndSortedEntries();
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    return allEntries.slice(startIndex, endIndex);
+  };
+
   const getFinanceStats = () => {
     if (financeEntries.length === 0) return null;
 
-    const total = financeEntries.length;
-    const income = financeEntries
+    // Get filtered entries based on current date filter
+    const filteredEntries = filteredAndSortedEntries();
+    
+    const total = filteredEntries.length;
+    const income = filteredEntries
       .filter(entry => entry.type === 'income')
       .reduce((sum, entry) => sum + entry.amount, 0);
-    const expenses = financeEntries
+    const expenses = filteredEntries
       .filter(entry => entry.type === 'expense')
       .reduce((sum, entry) => sum + entry.amount, 0);
     const balance = income - expenses;
 
-    const categoryBreakdown = financeEntries.reduce((acc, entry) => {
+    const categoryBreakdown = filteredEntries.reduce((acc, entry) => {
       const category = entry.category || 'other';
       if (!acc[category]) {
         acc[category] = { income: 0, expense: 0, count: 0 };
@@ -285,7 +447,7 @@ export default function FinancePage() {
       return acc;
     }, {} as Record<string, { income: number; expense: number; count: number }>);
 
-    const dailyTrend = financeEntries.reduce((acc, entry) => {
+    const dailyTrend = filteredEntries.reduce((acc, entry) => {
       const date = entry.date;
       if (!acc[date]) {
         acc[date] = { income: 0, expense: 0 };
@@ -308,8 +470,28 @@ export default function FinancePage() {
     };
   };
 
+  const getDateFilterLabel = () => {
+    switch (filters.dateFilter) {
+      case 'today':
+        return "Today's";
+      case 'week':
+        return "This Week's";
+      case 'month':
+        return "This Month's";
+      case 'quarter':
+        return "Past 3 Months'";
+      case 'year':
+        return "This Year's";
+      case 'custom':
+        return "Selected Period's";
+      default:
+        return "Today's";
+    }
+  };
+
   const stats = getFinanceStats();
-  const displayEntries = filteredAndSortedEntries();
+  const displayEntries = getPaginatedEntries();
+  const dateFilterLabel = getDateFilterLabel();
 
   const renderQuickStats = () => {
     if (!stats) return null;
@@ -319,7 +501,7 @@ export default function FinancePage() {
         <div className="bg-white rounded-lg p-4 shadow-sm border border-gray-100">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs text-gray-500 uppercase tracking-wide">Balance</p>
+              <p className="text-xs text-gray-500 uppercase tracking-wide">{dateFilterLabel} Balance</p>
               <p className={`text-xl font-bold ${stats.balance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                 {showBalance ? `$${stats.balance.toLocaleString()}` : '••••••'}
               </p>
@@ -339,7 +521,7 @@ export default function FinancePage() {
               <TrendingUp className="w-4 h-4 text-green-600" />
             </div>
             <div>
-              <p className="text-xs text-gray-500 uppercase tracking-wide">Income</p>
+              <p className="text-xs text-gray-500 uppercase tracking-wide">{dateFilterLabel} Income</p>
               <p className="text-xl font-bold text-green-600">${stats.income.toLocaleString()}</p>
             </div>
           </div>
@@ -351,7 +533,7 @@ export default function FinancePage() {
               <TrendingDown className="w-4 h-4 text-red-600" />
             </div>
             <div>
-              <p className="text-xs text-gray-500 uppercase tracking-wide">Expenses</p>
+              <p className="text-xs text-gray-500 uppercase tracking-wide">{dateFilterLabel} Expenses</p>
               <p className="text-xl font-bold text-red-600">${stats.expenses.toLocaleString()}</p>
             </div>
           </div>
@@ -363,7 +545,7 @@ export default function FinancePage() {
               <BarChart3 className="w-4 h-4 text-blue-600" />
             </div>
             <div>
-              <p className="text-xs text-gray-500 uppercase tracking-wide">Transactions</p>
+              <p className="text-xs text-gray-500 uppercase tracking-wide">{dateFilterLabel} Transactions</p>
               <p className="text-xl font-bold text-gray-900">{stats.total}</p>
             </div>
           </div>
@@ -377,34 +559,14 @@ export default function FinancePage() {
       <div className="space-y-2">
         {displayEntries.map((entry) => {
           const { emoji } = categoryIcons[entry.category as keyof typeof categoryIcons] || categoryIcons.other;
-          const swipeState = swipeStates[entry.id] || { x: 0, isSwiping: false };
-          
           return (
             <div 
               key={entry.id} 
               className="relative overflow-hidden"
-              onTouchStart={(e) => handleTouchStart(e, entry.id)}
-              onTouchMove={(e) => handleTouchMove(e, entry.id)}
-              onTouchEnd={(e) => handleTouchEnd(e, entry.id)}
             >
-              {/* Swipe Action Indicators */}
-              <div className="absolute inset-y-0 left-0 w-16 bg-blue-500 flex items-center justify-center transform -translate-x-full transition-transform duration-200"
-                   style={{ transform: `translateX(${Math.max(swipeState.x - 50, -64)}px)` }}>
-                <Edit3 className="w-6 h-6 text-white" />
-              </div>
-              
-              <div className="absolute inset-y-0 right-0 w-16 bg-red-500 flex items-center justify-center transform translate-x-full transition-transform duration-200"
-                   style={{ transform: `translateX(${Math.min(swipeState.x + 50, 64)}px)` }}>
-                <Trash2 className="w-6 h-6 text-white" />
-              </div>
-              
               {/* Main Transaction Card */}
               <div 
-                className="bg-white rounded-lg p-3 shadow-sm border border-gray-100 hover:shadow-md transition-all duration-200 group relative transform"
-                style={{ 
-                  transform: `translateX(${swipeState.x}px)`,
-                  transition: swipeState.isSwiping ? 'none' : 'transform 0.2s ease-out'
-                }}
+                className="bg-white rounded-lg p-3 shadow-sm border border-gray-100 hover:shadow-md transition-all duration-200 group relative"
                 onContextMenu={(e) => {
                   e.preventDefault();
                   setQuickActionEntry({ id: entry.id, x: e.clientX, y: e.clientY });
@@ -429,7 +591,7 @@ export default function FinancePage() {
                       )}
                       <div className="flex items-center space-x-1 text-xs text-gray-500 mt-0.5">
                         <Calendar className="w-3 h-3" />
-                        <span>{new Date(entry.date).toLocaleDateString()}</span>
+                        <span>{formatDatabaseDateForDisplay(entry.date)}</span>
                       </div>
                     </div>
                   </div>
@@ -440,14 +602,10 @@ export default function FinancePage() {
                     }`}>
                       {entry.type === 'income' ? '+' : '-'}${entry.amount.toLocaleString()}
                     </span>
-                    
-                    {/* Quick Actions - Hidden on mobile, shown on desktop */}
-                    <div className="hidden md:flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    {/* Quick Actions - Always visible */}
+                    <div className="flex items-center space-x-1 ml-2">
                       <button
-                        onClick={() => {
-                          // TODO: Implement edit functionality
-                          console.log('Edit entry:', entry.id);
-                        }}
+                        onClick={() => openEditModal(entry)}
                         className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
                         title="Edit transaction"
                       >
@@ -463,15 +621,8 @@ export default function FinancePage() {
                     </div>
                   </div>
                 </div>
-                
                 {/* Hover indicator */}
                 <div className="absolute inset-0 border-2 border-transparent group-hover:border-green-200 rounded-lg pointer-events-none transition-colors"></div>
-              </div>
-              
-              {/* Mobile Swipe Hint */}
-              <div className="md:hidden absolute inset-0 pointer-events-none flex items-center justify-between px-4 opacity-0 group-hover:opacity-100 transition-opacity">
-                <div className="text-xs text-gray-400">← Swipe to edit</div>
-                <div className="text-xs text-gray-400">Swipe to delete →</div>
               </div>
             </div>
           );
@@ -484,57 +635,6 @@ export default function FinancePage() {
     setQuickActionEntry(null);
     if (action === 'edit') handleOpenAddModal(day.dateString);
     if (action === 'delete' && day.entry) deleteFinanceEntry(day.entry.id);
-  };
-
-  // Swipe gesture handlers for mobile
-  const handleTouchStart = (e: React.TouchEvent, entryId: string) => {
-    const touch = e.touches[0];
-    setTouchStart({ x: touch.clientX, y: touch.clientY });
-    setSwipeStates(prev => ({
-      ...prev,
-      [entryId]: { x: 0, isSwiping: false }
-    }));
-  };
-
-  const handleTouchMove = (e: React.TouchEvent, entryId: string) => {
-    if (!touchStart) return;
-    
-    const touch = e.touches[0];
-    const deltaX = touch.clientX - touchStart.x;
-    const deltaY = Math.abs(touch.clientY - touchStart.y);
-    
-    // Only trigger swipe if horizontal movement is greater than vertical
-    if (Math.abs(deltaX) > deltaY && Math.abs(deltaX) > 10) {
-      e.preventDefault();
-      setSwipeStates(prev => ({
-        ...prev,
-        [entryId]: { x: deltaX, isSwiping: true }
-      }));
-    }
-  };
-
-  const handleTouchEnd = (e: React.TouchEvent, entryId: string) => {
-    if (!touchStart) return;
-    
-    const touch = e.changedTouches[0];
-    const deltaX = touch.clientX - touchStart.x;
-    
-    // Swipe left to delete (deltaX < -50)
-    if (deltaX < -50) {
-      deleteFinanceEntry(entryId);
-    }
-    // Swipe right to edit (deltaX > 50)
-    else if (deltaX > 50) {
-      // TODO: Implement edit functionality
-      console.log('Edit entry:', entryId);
-    }
-    
-    // Reset swipe state
-    setSwipeStates(prev => ({
-      ...prev,
-      [entryId]: { x: 0, isSwiping: false }
-    }));
-    setTouchStart(null);
   };
 
   // Smart category suggestions based on description
@@ -594,7 +694,7 @@ export default function FinancePage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-gray-50 pt-20">
         <div className="max-w-6xl mx-auto p-4">
           {/* Header Skeleton */}
           <div className="flex items-center justify-between mb-6">
@@ -707,668 +807,743 @@ export default function FinancePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-6xl mx-auto p-4">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center space-x-4">
-            <Link
-              href="/"
-              className="flex items-center space-x-2 text-gray-600 hover:text-gray-900 transition-colors"
-            >
-              <ArrowLeft className="w-5 h-5" />
-              <span className="text-sm">Back</span>
-            </Link>
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">Finance</h1>
-              <p className="text-sm text-gray-600">Track your money</p>
-            </div>
-          </div>
-          
-          <div className="flex items-center space-x-2">
-            <button
-              onClick={() => setShowFilters(!showFilters)}
-              className="p-2 text-gray-600 hover:text-gray-900 hover:bg-white rounded-lg transition-colors relative group"
-              title="Toggle filters (Ctrl+F)"
-            >
-              <Filter className="w-5 h-5" />
-              <span className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-                Ctrl+F
-              </span>
-            </button>
-            <button
-              onClick={() => setShowAddModal(true)}
-              className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium relative group"
-              title="Add transaction (Spacebar)"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Add</span>
-              <span className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-                Spacebar
-              </span>
-            </button>
-          </div>
-        </div>
-
-        {/* Financial Insights Panel - Prominent Position */}
-        {financeEntries.length > 0 && stats && (
-          <div className="bg-gradient-to-r from-green-50 to-blue-50 rounded-xl p-6 mb-6 border border-green-100">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900 flex items-center space-x-2">
-                <TrendingUp className="w-5 h-5 text-green-600" />
-                <span>Financial Insights</span>
-              </h3>
-              <span className="text-sm text-gray-500 bg-white px-2 py-1 rounded-full">
-                {financeEntries.length} transactions
-              </span>
+    <>
+      <TopBar isLoggedIn={true} />
+      <div className="min-h-screen bg-gray-50 pt-20">
+        <div className="max-w-6xl mx-auto p-4">
+          {/* Header */}
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center space-x-4">
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900">Finance</h1>
+                <p className="text-sm text-gray-600">Track your money</p>
+              </div>
             </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {/* Financial Health Score */}
-              <div className="bg-white rounded-lg p-4 shadow-sm border border-green-100">
-                <div className="flex items-center space-x-3">
-                  <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
-                    <Target className="w-5 h-5 text-green-600" />
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-500 uppercase tracking-wide">Health Score</p>
-                    <p className="font-medium text-gray-900">
-                      {stats.balance >= 0 ? 'Excellent' : stats.balance > -1000 ? 'Good' : 'Needs Attention'}
-                    </p>
-                    <p className="text-sm text-gray-600">
-                      {stats.balance >= 0 ? 'Positive cash flow' : 'Negative balance'}
-                    </p>
-                  </div>
-                  <div className="ml-auto">
-                    <span className={`text-lg font-bold ${stats.balance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                      {stats.balance >= 0 ? 'A+' : 'C'}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Top Spending Category */}
-              {(() => {
-                const topExpenseCategory = Object.entries(stats.categoryBreakdown)
-                  .filter(([_, data]) => data.expense > 0)
-                  .sort(([_, a], [__, b]) => b.expense - a.expense)[0];
-                
-                return topExpenseCategory ? (
-                  <div className="bg-white rounded-lg p-4 shadow-sm border border-orange-100">
-                    <div className="flex items-center space-x-3">
-                      <div className="w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center">
-                        <span className="text-lg">{categoryIcons[topExpenseCategory[0] as keyof typeof categoryIcons]?.emoji || '📦'}</span>
-                      </div>
-                      <div>
-                        <p className="text-xs text-gray-500 uppercase tracking-wide">Top Expense</p>
-                        <p className="font-medium text-gray-900 capitalize">{topExpenseCategory[0]}</p>
-                        <p className="text-sm text-gray-600">
-                          ${topExpenseCategory[1].expense.toLocaleString()}
-                        </p>
-                      </div>
-                      <div className="ml-auto">
-                        <span className="text-lg font-bold text-orange-600">
-                          {Math.round((topExpenseCategory[1].expense / stats.expenses) * 100)}%
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                ) : null;
-              })()}
-
-              {/* Savings Rate */}
-              <div className="bg-white rounded-lg p-4 shadow-sm border border-blue-100">
-                <div className="flex items-center space-x-3">
-                  <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-                    <PiggyBank className="w-5 h-5 text-blue-600" />
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-500 uppercase tracking-wide">Savings Rate</p>
-                    <p className="font-medium text-gray-900">
-                      {stats.income > 0 ? Math.round((stats.balance / stats.income) * 100) : 0}%
-                    </p>
-                    <p className="text-sm text-gray-600">
-                      {stats.income > 0 ? 'of income saved' : 'No income data'}
-                    </p>
-                  </div>
-                  <div className="ml-auto">
-                    <div className="w-12 h-12 relative">
-                      <svg className="w-12 h-12 transform -rotate-90" viewBox="0 0 36 36">
-                        <path
-                          d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                          fill="none"
-                          stroke="#e5e7eb"
-                          strokeWidth="3"
-                        />
-                        <path
-                          d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                          fill="none"
-                          stroke="#3b82f6"
-                          strokeWidth="3"
-                          strokeDasharray={`${Math.min(stats.income > 0 ? (stats.balance / stats.income) * 100 : 0, 100)} 100`}
-                        />
-                      </svg>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Smart Recommendations */}
-            <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-100">
-              <div className="flex items-start space-x-2">
-                <Target className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
-                <div className="flex-1">
-                  <p className="text-sm text-blue-800 font-medium mb-1">Smart Recommendations:</p>
-                  <ul className="text-sm text-blue-700 space-y-1">
-                    {stats.balance < 0 && (
-                      <li>• Consider reducing expenses in your top spending category</li>
-                    )}
-                    {stats.income > 0 && (stats.balance / stats.income) < 0.2 && (
-                      <li>• Aim to save at least 20% of your income for better financial health</li>
-                    )}
-                    {stats.expenses > stats.income * 0.8 && (
-                      <li>• Your expenses are high relative to income - review your budget</li>
-                    )}
-                    {stats.balance >= 0 && stats.income > 0 && (
-                      <li>• Great job! You're maintaining positive cash flow</li>
-                    )}
-                  </ul>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Quick Stats */}
-        {renderQuickStats()}
-
-        {/* Enhanced Charts Section */}
-        {financeEntries.length > 0 && stats && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
-            {/* Category Breakdown Chart */}
-            <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-base font-semibold text-gray-900 flex items-center space-x-2">
-                  <PieChart className="w-4 h-4 text-purple-600" />
-                  <span>Spending by Category</span>
-                </h3>
-                <span className="text-xs text-gray-500">${stats.expenses.toLocaleString()}</span>
-              </div>
-              
-              <div className="space-y-2">
-                {Object.entries(stats.categoryBreakdown)
-                  .filter(([_, data]) => data.expense > 0)
-                  .sort(([_, a], [__, b]) => b.expense - a.expense)
-                  .slice(0, 5)
-                  .map(([category, data]) => {
-                    const percentage = Math.round((data.expense / stats.expenses) * 100);
-                    const { emoji } = categoryIcons[category as keyof typeof categoryIcons] || categoryIcons.other;
-                    
-                    return (
-                      <div key={category} className="flex items-center space-x-2">
-                        <div className="flex items-center space-x-2 min-w-0 flex-1">
-                          <span className="text-base">{emoji}</span>
-                          <span className="text-sm font-medium text-gray-900 capitalize truncate">{category}</span>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <div className="w-16 bg-gray-200 rounded-full h-1.5">
-                            <div
-                              className="bg-purple-500 h-1.5 rounded-full transition-all"
-                              style={{ width: `${percentage}%` }}
-                            ></div>
-                          </div>
-                          <span className="text-xs text-gray-600 min-w-[50px] text-right">
-                            ${data.expense.toLocaleString()}
-                          </span>
-                          <span className="text-xs text-gray-500 min-w-[25px] text-right">
-                            {percentage}%
-                          </span>
-                        </div>
-                      </div>
-                    );
-                  })}
-              </div>
-            </div>
-
-            {/* Income vs Expenses Trend */}
-            <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-base font-semibold text-gray-900 flex items-center space-x-2">
-                  <LineChart className="w-4 h-4 text-blue-600" />
-                  <span>Income vs Expenses</span>
-                </h3>
-                <div className="flex items-center space-x-3 text-xs">
-                  <div className="flex items-center space-x-1">
-                    <div className="w-2 h-2 bg-green-500 rounded"></div>
-                    <span>Income</span>
-                  </div>
-                  <div className="flex items-center space-x-1">
-                    <div className="w-2 h-2 bg-red-500 rounded"></div>
-                    <span>Expenses</span>
-                  </div>
-                </div>
-              </div>
-              
-              <div className="space-y-2">
-                {/* Monthly Trend Bars */}
-                {(() => {
-                  const monthlyData = Object.entries(stats.dailyTrend)
-                    .reduce((acc, [date, data]) => {
-                      const month = new Date(date).toLocaleDateString('en-US', { month: 'short' });
-                      if (!acc[month]) {
-                        acc[month] = { income: 0, expense: 0 };
-                      }
-                      acc[month].income += data.income;
-                      acc[month].expense += data.expense;
-                      return acc;
-                    }, {} as Record<string, { income: number; expense: number }>);
-                  
-                  const maxValue = Math.max(
-                    ...Object.values(monthlyData).map(d => Math.max(d.income, d.expense))
-                  );
-                  
-                  return Object.entries(monthlyData)
-                    .slice(-4) // Last 4 months for more compact view
-                    .map(([month, data]) => (
-                      <div key={month} className="space-y-1">
-                        <div className="flex items-center justify-between text-xs text-gray-600">
-                          <span>{month}</span>
-                          <span>${(data.income - data.expense).toLocaleString()}</span>
-                        </div>
-                        <div className="flex items-end space-x-1 h-6">
-                          <div 
-                            className="bg-green-500 rounded-t transition-all hover:bg-green-600"
-                            style={{ 
-                              height: `${Math.max((data.income / maxValue) * 100, 4)}%`,
-                              minHeight: '2px'
-                            }}
-                            title={`Income: $${data.income.toLocaleString()}`}
-                          ></div>
-                          <div 
-                            className="bg-red-500 rounded-t transition-all hover:bg-red-600"
-                            style={{ 
-                              height: `${Math.max((data.expense / maxValue) * 100, 4)}%`,
-                              minHeight: '2px'
-                            }}
-                            title={`Expense: $${data.expense.toLocaleString()}`}
-                          ></div>
-                        </div>
-                      </div>
-                    ));
-                })()}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Compact Filters */}
-        {showFilters && (
-          <div className="bg-white rounded-lg p-4 shadow-sm border border-gray-100 mb-6">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                <input
-                  type="text"
-                  placeholder="Search transactions..."
-                  value={filters.search}
-                  onChange={(e) => setFilters(prev => ({ ...prev, search: e.target.value }))}
-                  className="w-full pl-10 pr-4 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                />
-              </div>
-              
-              <select
-                value={filters.dateFilter}
-                onChange={(e) => setFilters(prev => ({ ...prev, dateFilter: e.target.value as DateFilter }))}
-                className="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-              >
-                <option value="today">Today</option>
-                <option value="week">This Week</option>
-                <option value="month">This Month</option>
-                <option value="quarter">This Quarter</option>
-                <option value="year">This Year</option>
-                <option value="custom">Custom</option>
-              </select>
-              
-              <select
-                value={filters.type}
-                onChange={(e) => setFilters(prev => ({ ...prev, type: e.target.value }))}
-                className="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-              >
-                <option value="">All Types</option>
-                <option value="income">Income</option>
-                <option value="expense">Expense</option>
-              </select>
-              
-              <select
-                value={filters.category}
-                onChange={(e) => setFilters(prev => ({ ...prev, category: e.target.value }))}
-                className="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-              >
-                <option value="">All Categories</option>
-                <option value="salary">Salary</option>
-                <option value="freelance">Freelance</option>
-                <option value="investment">Investment</option>
-                <option value="food">Food</option>
-                <option value="transport">Transport</option>
-                <option value="entertainment">Entertainment</option>
-                <option value="shopping">Shopping</option>
-                <option value="bills">Bills</option>
-                <option value="health">Health</option>
-                <option value="other">Other</option>
-              </select>
-            </div>
-            
-            {filters.dateFilter === 'custom' && (
-              <div className="flex items-center space-x-2 mt-4">
-                <input
-                  type="date"
-                  value={filters.customStartDate}
-                  onChange={(e) => setFilters(prev => ({ ...prev, customStartDate: e.target.value }))}
-                  className="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                />
-                <span className="text-sm text-gray-500">to</span>
-                <input
-                  type="date"
-                  value={filters.customEndDate}
-                  onChange={(e) => setFilters(prev => ({ ...prev, customEndDate: e.target.value }))}
-                  className="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                />
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Transactions */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-100">
-          <div className="p-3 border-b border-gray-100">
-            <div className="flex items-center justify-between">
-              <h2 className="text-base font-semibold text-gray-900">Transactions</h2>
-              <div className="flex items-center space-x-2">
-                <select
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value as any)}
-                  className="px-2 py-1 text-xs border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                >
-                  <option value="date">Date</option>
-                  <option value="amount">Amount</option>
-                </select>
-                <button
-                  onClick={() => setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')}
-                  className="p-1 text-gray-400 hover:text-gray-600"
-                >
-                  <TrendingUpIcon className={`w-3 h-3 ${sortOrder === 'desc' ? 'rotate-180' : ''}`} />
-                </button>
-              </div>
-            </div>
-          </div>
-          
-          <div className="p-3">
-            {displayEntries.length === 0 ? (
-              <div className="text-center py-8">
-                <div className="text-3xl mb-3">💰</div>
-                <h3 className="text-base font-semibold text-gray-900 mb-2">No transactions found</h3>
-                <p className="text-sm text-gray-600 mb-4">
-                  {financeEntries.length === 0 ? 'Start tracking your finances' : 'No transactions match your filters'}
-                </p>
-                {financeEntries.length === 0 && (
-                  <button
-                    onClick={() => setShowAddModal(true)}
-                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm"
-                  >
-                    Add Your First Transaction
-                  </button>
-                )}
-              </div>
-            ) : (
-              renderCompactTransactions()
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Quick Add Modal */}
-      {showAddModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between p-4 border-b border-gray-200 sticky top-0 bg-white">
-              <h2 className="text-lg font-semibold text-gray-900">Quick Add Transaction</h2>
+            <div className="flex items-center space-x-2">
               <button
-                onClick={() => setShowAddModal(false)}
-                className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition-colors"
+                onClick={() => setShowAddModal(true)}
+                className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium relative group"
+                title="Add transaction (Spacebar)"
               >
-                <X className="w-5 h-5" />
+                <Plus className="w-4 h-4" />
+                <span>Add</span>
+                <span className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                  Spacebar
+                </span>
               </button>
             </div>
-            
-            <div className="p-4 space-y-4">
-              {/* Amount Templates */}
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-2">Quick Templates</label>
-                <div className="grid grid-cols-2 gap-2">
-                  {amountTemplates
-                    .filter(template => template.type === newEntry.type)
-                    .slice(0, 4)
-                    .map((template, index) => (
-                      <button
-                        key={index}
-                        onClick={() => setNewEntry(prev => ({
-                          ...prev,
-                          amount: template.amount,
-                          category: template.category,
-                          description: template.label
-                        }))}
-                        className="p-2 text-xs border border-gray-200 rounded-lg hover:border-green-300 hover:bg-green-50 transition-colors text-left"
-                      >
-                        <div className="font-medium text-gray-900">{template.label}</div>
-                        <div className="text-gray-600">${template.amount}</div>
-                      </button>
-                    ))}
+          </div>
+
+          {/* Quick Stats */}
+          {renderQuickStats()}
+
+          {/* Transactions */}
+          <div className="bg-white rounded-lg shadow-sm border border-gray-100">
+            <div className="p-3 border-b border-gray-100">
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-base font-semibold text-gray-900">Transactions</h2>
+                <div className="flex items-center space-x-2">
+                  <select
+                    value={sortBy}
+                    onChange={(e) => setSortBy(e.target.value as any)}
+                    className="px-2 py-1 text-xs border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  >
+                    <option value="date">Date</option>
+                    <option value="amount">Amount</option>
+                    <option value="type">Type</option>
+                    <option value="category">Category</option>
+                  </select>
+                  <button
+                    onClick={() => setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')}
+                    className="p-1 text-gray-400 hover:text-gray-600"
+                  >
+                    <TrendingUpIcon className={`w-3 h-3 ${sortOrder === 'desc' ? 'rotate-180' : ''}`} />
+                  </button>
                 </div>
               </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Amount</label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 text-sm">$</span>
+              
+              {/* Search and Filter Row */}
+              <div className="flex items-center space-x-3 mb-3">
+                <div className="flex-1">
+                  <input
+                    type="text"
+                    placeholder="Search transactions..."
+                    value={filters.search}
+                    onChange={(e) => setFilters(f => ({ ...f, search: e.target.value }))}
+                    className="w-full px-3 py-1 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+                <select
+                  value={filters.type}
+                  onChange={(e) => setFilters(f => ({ ...f, type: e.target.value }))}
+                  className="px-3 py-1 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="">All Types</option>
+                  <option value="income">Income</option>
+                  <option value="expense">Expense</option>
+                </select>
+                <select
+                  value={filters.category}
+                  onChange={(e) => setFilters(f => ({ ...f, category: e.target.value }))}
+                  className="px-3 py-1 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="">All Categories</option>
+                  <option value="food">Food</option>
+                  <option value="transport">Transport</option>
+                  <option value="entertainment">Entertainment</option>
+                  <option value="shopping">Shopping</option>
+                  <option value="bills">Bills</option>
+                  <option value="health">Health</option>
+                  <option value="education">Education</option>
+                  <option value="salary">Salary</option>
+                  <option value="freelance">Freelance</option>
+                  <option value="investment">Investment</option>
+                  <option value="other">Other</option>
+                </select>
+                <button
+                  onClick={() => {
+                    setFilters({
+                      search: '',
+                      type: '',
+                      category: '',
+                      dateFilter: 'today',
+                      customStartDate: '',
+                      customEndDate: ''
+                    });
+                    setSortBy('date');
+                    setSortOrder('desc');
+                    setCurrentPage(1);
+                  }}
+                  className="px-3 py-1 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  Clear
+                </button>
+              </div>
+              
+              {/* Date Filter Buttons */}
+              <div className="flex flex-wrap gap-2">
+                <button
+                  className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${filters.dateFilter === 'today' ? 'bg-blue-600 text-white' : 'bg-white text-gray-700 border border-gray-200 hover:bg-blue-50'}`}
+                  onClick={async () => {
+                    setFilters(f => ({ ...f, dateFilter: 'today', customStartDate: '', customEndDate: '' }));
+                    await refreshTransactions();
+                  }}
+                >
+                  Today
+                </button>
+                <button
+                  className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${filters.dateFilter === 'month' ? 'bg-blue-600 text-white' : 'bg-white text-gray-700 border border-gray-200 hover:bg-blue-50'}`}
+                  onClick={async () => {
+                    setFilters(f => ({ ...f, dateFilter: 'month', customStartDate: '', customEndDate: '' }));
+                    await refreshTransactions();
+                  }}
+                >
+                  This Month
+                </button>
+                <button
+                  className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${filters.dateFilter === 'quarter' ? 'bg-blue-600 text-white' : 'bg-white text-gray-700 border border-gray-200 hover:bg-blue-50'}`}
+                  onClick={async () => {
+                    setFilters(f => ({ ...f, dateFilter: 'quarter', customStartDate: '', customEndDate: '' }));
+                    await refreshTransactions();
+                  }}
+                >
+                  Past 3 Months
+                </button>
+                <button
+                  className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${filters.dateFilter === 'year' ? 'bg-blue-600 text-white' : 'bg-white text-gray-700 border border-gray-200 hover:bg-blue-50'}`}
+                  onClick={async () => {
+                    setFilters(f => ({ ...f, dateFilter: 'year', customStartDate: '', customEndDate: '' }));
+                    await refreshTransactions();
+                  }}
+                >
+                  This Year
+                </button>
+                <button
+                  className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${filters.dateFilter === 'custom' ? 'bg-blue-600 text-white' : 'bg-white text-gray-700 border border-gray-200 hover:bg-blue-50'}`}
+                  onClick={() => setFilters(f => ({ ...f, dateFilter: 'custom' }))}
+                >
+                  Custom
+                </button>
+              </div>
+              
+              {/* Custom Date Inputs */}
+              {filters.dateFilter === 'custom' && (
+                <div className="flex items-center space-x-4 mt-3 pt-3 border-t border-gray-100">
+                  <div className="flex items-center space-x-2">
+                    <label className="text-sm font-medium text-gray-700">From:</label>
                     <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      placeholder="0.00"
-                      value={newEntry.amount}
-                      onChange={(e) => setNewEntry(prev => ({ ...prev, amount: e.target.value }))}
-                      className="w-full pl-8 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                      autoFocus
+                      type="date"
+                      value={filters.customStartDate}
+                      onChange={(e) => setFilters(f => ({ ...f, customStartDate: e.target.value }))}
+                      className="px-3 py-1 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <label className="text-sm font-medium text-gray-700">To:</label>
+                    <input
+                      type="date"
+                      value={filters.customEndDate}
+                      onChange={(e) => setFilters(f => ({ ...f, customEndDate: e.target.value }))}
+                      className="px-3 py-1 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                  <button
+                    onClick={async () => {
+                      if (filters.customStartDate && filters.customEndDate) {
+                        await refreshTransactions();
+                      }
+                    }}
+                    disabled={!filters.customStartDate || !filters.customEndDate}
+                    className="px-3 py-1 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+                  >
+                    Apply
+                  </button>
+                </div>
+              )}
+              
+              {/* Results Count */}
+              <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
+                <div className="text-sm text-gray-600">
+                  Showing {displayEntries.length} of {getAllFilteredEntries().length} transactions
+                  {(filters.search || filters.type || filters.category) && (
+                    <span className="text-blue-600 ml-1">(filtered)</span>
+                  )}
+                </div>
+                <div className="text-sm text-gray-500">
+                  Sorted by {sortBy} ({sortOrder === 'asc' ? 'ascending' : 'descending'})
+                </div>
+              </div>
+            </div>
+            
+            <div className="p-3">
+              {transactionsLoading ? (
+                <div className="space-y-2">
+                  {[...Array(5)].map((_, i) => (
+                    <div key={i} className="bg-white rounded-lg p-3 shadow-sm border border-gray-100 animate-pulse">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-2">
+                          <div className="w-6 h-6 bg-gray-200 rounded animate-pulse"></div>
+                          <div>
+                            <div className="h-4 bg-gray-200 rounded w-24 mb-1 animate-pulse"></div>
+                            <div className="h-3 bg-gray-200 rounded w-32 animate-pulse"></div>
+                          </div>
+                        </div>
+                        <div className="h-4 bg-gray-200 rounded w-16 animate-pulse"></div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : displayEntries.length === 0 ? (
+                <div className="text-center py-8">
+                  <div className="text-3xl mb-3">💰</div>
+                  <h3 className="text-base font-semibold text-gray-900 mb-2">No transactions found</h3>
+                  <p className="text-sm text-gray-600 mb-4">
+                    {financeEntries.length === 0 ? 'Start tracking your finances' : 'No transactions match your filters'}
+                  </p>
+                  {financeEntries.length === 0 && (
+                    <button
+                      onClick={() => setShowAddModal(true)}
+                      className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm"
+                    >
+                      Add Your First Transaction
+                    </button>
+                  )}
+                </div>
+              ) : (
+                renderCompactTransactions()
+              )}
+            </div>
+            
+            {/* Pagination Controls */}
+            {getAllFilteredEntries().length > 0 && (
+              <div className="px-3 py-3 border-t border-gray-100 bg-gray-50">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <span className="text-sm text-gray-600">Show:</span>
+                    <select
+                      value={itemsPerPage}
+                      onChange={(e) => {
+                        setItemsPerPage(Number(e.target.value));
+                        setCurrentPage(1); // Reset to first page when changing items per page
+                      }}
+                      className="px-2 py-1 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      <option value={10}>10</option>
+                      <option value={20}>20</option>
+                      <option value={50}>50</option>
+                      <option value={100}>100</option>
+                    </select>
+                    <span className="text-sm text-gray-600">per page</span>
+                  </div>
+                  
+                  <div className="flex items-center space-x-2">
+                    <button
+                      onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                      disabled={currentPage === 1}
+                      className="px-3 py-1 text-sm border border-gray-300 rounded-lg hover:bg-white disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed transition-colors"
+                    >
+                      Previous
+                    </button>
+                    
+                    <div className="flex items-center space-x-1">
+                      {(() => {
+                        const totalPages = Math.ceil(getAllFilteredEntries().length / itemsPerPage);
+                        const pages = [];
+                        
+                        // Always show first page
+                        if (currentPage > 3) {
+                          pages.push(
+                            <button
+                              key={1}
+                              onClick={() => setCurrentPage(1)}
+                              className="px-2 py-1 text-sm border border-gray-300 rounded hover:bg-white transition-colors"
+                            >
+                              1
+                            </button>
+                          );
+                          if (currentPage > 4) {
+                            pages.push(
+                              <span key="ellipsis1" className="px-2 py-1 text-sm text-gray-400">
+                                ...
+                              </span>
+                            );
+                          }
+                        }
+                        
+                        // Show pages around current page
+                        for (let i = Math.max(1, currentPage - 1); i <= Math.min(totalPages, currentPage + 1); i++) {
+                          pages.push(
+                            <button
+                              key={i}
+                              onClick={() => setCurrentPage(i)}
+                              className={`px-2 py-1 text-sm border rounded transition-colors ${
+                                i === currentPage
+                                  ? 'bg-blue-600 text-white border-blue-600'
+                                  : 'border-gray-300 hover:bg-white'
+                              }`}
+                            >
+                              {i}
+                            </button>
+                          );
+                        }
+                        
+                        // Always show last page
+                        if (currentPage < totalPages - 2) {
+                          if (currentPage < totalPages - 3) {
+                            pages.push(
+                              <span key="ellipsis2" className="px-2 py-1 text-sm text-gray-400">
+                                ...
+                              </span>
+                            );
+                          }
+                          pages.push(
+                            <button
+                              key={totalPages}
+                              onClick={() => setCurrentPage(totalPages)}
+                              className="px-2 py-1 text-sm border border-gray-300 rounded hover:bg-white transition-colors"
+                            >
+                              {totalPages}
+                            </button>
+                          );
+                        }
+                        
+                        return pages;
+                      })()}
+                    </div>
+                    
+                    <button
+                      onClick={() => setCurrentPage(prev => Math.min(Math.ceil(getAllFilteredEntries().length / itemsPerPage), prev + 1))}
+                      disabled={currentPage >= Math.ceil(getAllFilteredEntries().length / itemsPerPage)}
+                      className="px-3 py-1 text-sm border border-gray-300 rounded-lg hover:bg-white disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed transition-colors"
+                    >
+                      Next
+                    </button>
+                  </div>
+                  
+                  <div className="text-sm text-gray-600">
+                    Page {currentPage} of {Math.ceil(getAllFilteredEntries().length / itemsPerPage)}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Quick Add Modal */}
+        {showAddModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between p-4 border-b border-gray-200 sticky top-0 bg-white">
+                <h2 className="text-lg font-semibold text-gray-900">Quick Add Transaction</h2>
+                <button
+                  onClick={() => setShowAddModal(false)}
+                  className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              
+              <div className="p-4 space-y-4">
+                {/* Amount Templates */}
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-2">Quick Templates</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {amountTemplates
+                      .filter(template => template.type === newEntry.type)
+                      .slice(0, 4)
+                      .map((template, index) => (
+                        <button
+                          key={index}
+                          onClick={() => setNewEntry(prev => ({
+                            ...prev,
+                            amount: template.amount,
+                            category: template.category,
+                            description: template.label
+                          }))}
+                          className="p-2 text-xs border border-gray-200 rounded-lg hover:border-green-300 hover:bg-green-50 transition-colors text-left"
+                        >
+                          <div className="font-medium text-gray-900">{template.label}</div>
+                          <div className="text-gray-600">${template.amount}</div>
+                        </button>
+                      ))}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Amount</label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 text-sm">$</span>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        placeholder="0.00"
+                        value={newEntry.amount}
+                        onChange={(e) => setNewEntry(prev => ({ ...prev, amount: e.target.value }))}
+                        className="w-full pl-8 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                        autoFocus
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Type</label>
+                    <select
+                      value={newEntry.type}
+                      onChange={(e) => setNewEntry(prev => ({ 
+                        ...prev, 
+                        type: e.target.value as 'income' | 'expense',
+                        category: 'other' // Reset category when type changes
+                      }))}
+                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                    >
+                      <option value="expense">Expense</option>
+                      <option value="income">Income</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="relative">
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Category</label>
+                    <select
+                      value={newEntry.category}
+                      onChange={(e) => setNewEntry(prev => ({ ...prev, category: e.target.value }))}
+                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                    >
+                      {newEntry.type === 'income' ? (
+                        <>
+                          <option value="salary">Salary</option>
+                          <option value="freelance">Freelance</option>
+                          <option value="investment">Investment</option>
+                          <option value="other">Other</option>
+                        </>
+                      ) : (
+                        <>
+                          <option value="food">Food</option>
+                          <option value="transport">Transport</option>
+                          <option value="entertainment">Entertainment</option>
+                          <option value="shopping">Shopping</option>
+                          <option value="bills">Bills</option>
+                          <option value="health">Health</option>
+                          <option value="other">Other</option>
+                        </>
+                      )}
+                    </select>
+                    
+                    {/* Category Suggestions */}
+                    {categorySuggestions.length > 0 && showSuggestions && (
+                      <div className="absolute top-full left-0 right-0 bg-white border border-gray-200 rounded-lg shadow-lg z-10 mt-1">
+                        {categorySuggestions.map((suggestion, index) => (
+                          <button
+                            key={index}
+                            onClick={() => {
+                              setNewEntry(prev => ({ ...prev, category: suggestion }));
+                              setShowSuggestions(false);
+                            }}
+                            className="w-full px-3 py-2 text-sm text-left hover:bg-gray-50 flex items-center space-x-2"
+                          >
+                            <span className="text-lg">{categoryIcons[suggestion as keyof typeof categoryIcons]?.emoji || '📦'}</span>
+                            <span className="capitalize">{suggestion}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Date</label>
+                    <input
+                      type="date"
+                      value={newEntry.date}
+                      onChange={(e) => setNewEntry(prev => ({ ...prev, date: e.target.value }))}
+                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                     />
                   </div>
                 </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Type</label>
-                  <select
-                    value={newEntry.type}
-                    onChange={(e) => setNewEntry(prev => ({ 
-                      ...prev, 
-                      type: e.target.value as 'income' | 'expense',
-                      category: 'other' // Reset category when type changes
-                    }))}
-                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                  >
-                    <option value="expense">Expense</option>
-                    <option value="income">Income</option>
-                  </select>
-                </div>
-              </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div className="relative">
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Category</label>
-                  <select
-                    value={newEntry.category}
-                    onChange={(e) => setNewEntry(prev => ({ ...prev, category: e.target.value }))}
-                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                  >
-                    {newEntry.type === 'income' ? (
-                      <>
-                        <option value="salary">Salary</option>
-                        <option value="freelance">Freelance</option>
-                        <option value="investment">Investment</option>
-                        <option value="other">Other</option>
-                      </>
-                    ) : (
-                      <>
-                        <option value="food">Food</option>
-                        <option value="transport">Transport</option>
-                        <option value="entertainment">Entertainment</option>
-                        <option value="shopping">Shopping</option>
-                        <option value="bills">Bills</option>
-                        <option value="health">Health</option>
-                        <option value="other">Other</option>
-                      </>
-                    )}
-                  </select>
-                  
-                  {/* Category Suggestions */}
-                  {categorySuggestions.length > 0 && showSuggestions && (
-                    <div className="absolute top-full left-0 right-0 bg-white border border-gray-200 rounded-lg shadow-lg z-10 mt-1">
-                      {categorySuggestions.map((suggestion, index) => (
-                        <button
-                          key={index}
-                          onClick={() => {
-                            setNewEntry(prev => ({ ...prev, category: suggestion }));
-                            setShowSuggestions(false);
-                          }}
-                          className="w-full px-3 py-2 text-sm text-left hover:bg-gray-50 flex items-center space-x-2"
-                        >
-                          <span className="text-lg">{categoryIcons[suggestion as keyof typeof categoryIcons]?.emoji || '📦'}</span>
-                          <span className="capitalize">{suggestion}</span>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Date</label>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Description</label>
                   <input
-                    type="date"
-                    value={newEntry.date}
-                    onChange={(e) => setNewEntry(prev => ({ ...prev, date: e.target.value }))}
+                    type="text"
+                    placeholder="What was this for?"
+                    value={newEntry.description}
+                    onChange={(e) => {
+                      const description = e.target.value;
+                      setNewEntry(prev => ({ ...prev, description }));
+                      
+                      // Auto-suggest category based on description
+                      if (description.length > 2) {
+                        const suggestions = getCategorySuggestions(description);
+                        setCategorySuggestions(suggestions);
+                        setShowSuggestions(suggestions.length > 0);
+                      } else {
+                        setShowSuggestions(false);
+                      }
+                    }}
+                    onFocus={() => {
+                      if (categorySuggestions.length > 0) {
+                        setShowSuggestions(true);
+                      }
+                    }}
+                    onBlur={() => {
+                      // Delay hiding suggestions to allow clicking on them
+                      setTimeout(() => setShowSuggestions(false), 200);
+                    }}
                     className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                   />
                 </div>
-              </div>
 
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">Description</label>
-                <input
-                  type="text"
-                  placeholder="What was this for?"
-                  value={newEntry.description}
-                  onChange={(e) => {
-                    const description = e.target.value;
-                    setNewEntry(prev => ({ ...prev, description }));
-                    
-                    // Auto-suggest category based on description
-                    if (description.length > 2) {
-                      const suggestions = getCategorySuggestions(description);
-                      setCategorySuggestions(suggestions);
-                      setShowSuggestions(suggestions.length > 0);
-                    } else {
-                      setShowSuggestions(false);
-                    }
-                  }}
-                  onFocus={() => {
-                    if (categorySuggestions.length > 0) {
-                      setShowSuggestions(true);
-                    }
-                  }}
-                  onBlur={() => {
-                    // Delay hiding suggestions to allow clicking on them
-                    setTimeout(() => setShowSuggestions(false), 200);
-                  }}
-                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                />
-              </div>
-
-              <div className="flex items-center space-x-3 pt-2">
-                <button
-                  onClick={addFinanceEntry}
-                  disabled={!newEntry.amount || parseFloat(newEntry.amount) <= 0 || saving}
-                  className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
-                >
-                  {saving ? (
-                    <>
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                      <span>Saving...</span>
-                    </>
-                  ) : (
-                    <span>Add Transaction</span>
-                  )}
-                </button>
-                <button
-                  onClick={() => setShowAddModal(false)}
-                  className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors text-sm"
-                >
-                  Cancel
-                </button>
+                <div className="flex items-center space-x-3 pt-2">
+                  <button
+                    onClick={addFinanceEntry}
+                    disabled={!newEntry.amount || parseFloat(newEntry.amount) <= 0 || saving}
+                    className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
+                  >
+                    {saving ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        <span>Saving...</span>
+                      </>
+                    ) : (
+                      <span>Add Transaction</span>
+                    )}
+                  </button>
+                  <button
+                    onClick={() => setShowAddModal(false)}
+                    className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors text-sm"
+                  >
+                    Cancel
+                  </button>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Quick Actions Context Menu */}
-      {quickActionEntry && (
-        <div 
-          className="fixed z-50 bg-white rounded-lg shadow-lg border border-gray-200 py-1 min-w-[120px]"
-          style={{ 
-            left: quickActionEntry.x, 
-            top: quickActionEntry.y,
-            transform: 'translate(-50%, -100%)'
-          }}
-        >
-          <button
-            onClick={() => {
-              // TODO: Implement edit functionality
-              console.log('Edit entry:', quickActionEntry.id);
-              setQuickActionEntry(null);
-            }}
-            className="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center space-x-2"
-          >
-            <Edit3 className="w-4 h-4" />
-            <span>Edit</span>
-          </button>
-          <button
-            onClick={() => {
-              deleteFinanceEntry(quickActionEntry.id);
-              setQuickActionEntry(null);
-            }}
-            className="w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center space-x-2"
-          >
-            <Trash2 className="w-4 h-4" />
-            <span>Delete</span>
-          </button>
-        </div>
-      )}
+        {/* Edit Transaction Modal */}
+        {showEditModal && editingEntry && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between p-4 border-b border-gray-200 sticky top-0 bg-white">
+                <h2 className="text-lg font-semibold text-gray-900">Edit Transaction</h2>
+                <button
+                  onClick={() => {
+                    setShowEditModal(false);
+                    setEditingEntry(null);
+                  }}
+                  className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              
+              <div className="p-4 space-y-4">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Amount</label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 text-sm">$</span>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        placeholder="0.00"
+                        value={editingEntry.amount}
+                        onChange={(e) => setEditingEntry(prev => prev ? { ...prev, amount: e.target.value } : null)}
+                        className="w-full pl-8 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        autoFocus
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Type</label>
+                    <select
+                      value={editingEntry.type}
+                      onChange={(e) => setEditingEntry(prev => prev ? { 
+                        ...prev, 
+                        type: e.target.value as 'income' | 'expense',
+                        category: 'other' // Reset category when type changes
+                      } : null)}
+                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      <option value="expense">Expense</option>
+                      <option value="income">Income</option>
+                    </select>
+                  </div>
+                </div>
 
-      {/* Click outside to close context menu */}
-      {quickActionEntry && (
-        <div 
-          className="fixed inset-0 z-40" 
-          onClick={() => setQuickActionEntry(null)}
-        />
-      )}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Category</label>
+                    <select
+                      value={editingEntry.category}
+                      onChange={(e) => setEditingEntry(prev => prev ? { ...prev, category: e.target.value } : null)}
+                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      {editingEntry.type === 'income' ? (
+                        <>
+                          <option value="salary">Salary</option>
+                          <option value="freelance">Freelance</option>
+                          <option value="investment">Investment</option>
+                          <option value="other">Other</option>
+                        </>
+                      ) : (
+                        <>
+                          <option value="food">Food</option>
+                          <option value="transport">Transport</option>
+                          <option value="entertainment">Entertainment</option>
+                          <option value="shopping">Shopping</option>
+                          <option value="bills">Bills</option>
+                          <option value="health">Health</option>
+                          <option value="other">Other</option>
+                        </>
+                      )}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Date</label>
+                    <input
+                      type="date"
+                      value={editingEntry.date}
+                      onChange={(e) => setEditingEntry(prev => prev ? { ...prev, date: e.target.value } : null)}
+                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                </div>
 
-      {/* Success Notification */}
-      {showSuccess && (
-        <div className="fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-50 flex items-center space-x-2 animate-in slide-in-from-right duration-300">
-          <div className="w-5 h-5 bg-white rounded-full flex items-center justify-center">
-            <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Description</label>
+                  <input
+                    type="text"
+                    placeholder="What was this for?"
+                    value={editingEntry.description || ''}
+                    onChange={(e) => setEditingEntry(prev => prev ? { ...prev, description: e.target.value } : null)}
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+
+                <div className="flex items-center space-x-3 pt-2">
+                  <button
+                    onClick={editFinanceEntry}
+                    disabled={!editingEntry.amount || parseFloat(editingEntry.amount.toString()) <= 0 || saving}
+                    className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
+                  >
+                    {saving ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        <span>Saving...</span>
+                      </>
+                    ) : (
+                      <span>Update Transaction</span>
+                    )}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowEditModal(false);
+                      setEditingEntry(null);
+                    }}
+                    className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors text-sm"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
-          <span className="font-medium">Transaction added successfully!</span>
-        </div>
-      )}
-    </div>
+        )}
+
+        {/* Quick Actions Context Menu */}
+        {quickActionEntry && (
+          <div 
+            className="fixed z-50 bg-white rounded-lg shadow-lg border border-gray-200 py-1 min-w-[120px]"
+            style={{ 
+              left: quickActionEntry.x, 
+              top: quickActionEntry.y,
+              transform: 'translate(-50%, -100%)'
+            }}
+          >
+            <button
+              onClick={() => {
+                openEditModal(quickActionEntry);
+                setQuickActionEntry(null);
+              }}
+              className="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center space-x-2"
+            >
+              <Edit3 className="w-4 h-4" />
+              <span>Edit</span>
+            </button>
+            <button
+              onClick={() => {
+                deleteFinanceEntry(quickActionEntry.id);
+                setQuickActionEntry(null);
+              }}
+              className="w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center space-x-2"
+            >
+              <Trash2 className="w-4 h-4" />
+              <span>Delete</span>
+            </button>
+          </div>
+        )}
+
+        {/* Click outside to close context menu */}
+        {quickActionEntry && (
+          <div 
+            className="fixed inset-0 z-40" 
+            onClick={() => setQuickActionEntry(null)}
+          />
+        )}
+
+        {/* Success Notification */}
+        {showSuccess && (
+          <div className="fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-50 flex items-center space-x-2 animate-in slide-in-from-right duration-300">
+            <div className="w-5 h-5 bg-white rounded-full flex items-center justify-center">
+              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+            </div>
+            <span className="font-medium">Transaction added successfully!</span>
+          </div>
+        )}
+      </div>
+    </>
   );
 } 

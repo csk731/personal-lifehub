@@ -42,6 +42,7 @@ import {
 } from 'lucide-react';
 import { getAuthHeaders } from '@/lib/utils';
 import Link from 'next/link';
+import { TopBar } from '@/components/dashboard/TopBar';
 
 interface MoodEntry {
   id: string;
@@ -1019,337 +1020,333 @@ export default function MoodPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto p-4">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center space-x-4">
-            <Link
-              href="/"
-              className="flex items-center space-x-2 text-gray-600 hover:text-gray-900 transition-colors"
-            >
-              <ArrowLeft className="w-5 h-5" />
-              <span className="text-sm">Back</span>
-            </Link>
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">Mood Tracker</h1>
-              <p className="text-sm text-gray-600">Track your daily well-being</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Mood Insights Panel - Prominent Position */}
-        {moodEntries.length > 0 && (
-          <div className="bg-gradient-to-r from-purple-50 to-blue-50 rounded-xl p-6 mb-6 border border-purple-100">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900 flex items-center space-x-2">
-                <Sparkles className="w-5 h-5 text-purple-600" />
-                <span>Mood Insights</span>
-              </h3>
-              <span className="text-sm text-gray-500 bg-white px-2 py-1 rounded-full">
-                {moodEntries.length} entries
-              </span>
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {/* Best Day */}
-              {bestDay && (
-                <div className="bg-white rounded-lg p-4 shadow-sm border border-green-100">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
-                      <span className="text-xl">{bestDay.mood_emoji}</span>
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-500 uppercase tracking-wide">Best Day</p>
-                      <p className="font-medium text-gray-900">{bestDay.mood_label}</p>
-                      <p className="text-sm text-gray-600">
-                        {new Date(bestDay.date).toLocaleDateString('en-US', { 
-                          weekday: 'short', 
-                          month: 'short', 
-                          day: 'numeric' 
-                        })}
-                      </p>
-                    </div>
-                    <div className="ml-auto">
-                      <span className="text-lg font-bold text-green-600">{bestDay.mood_score}/10</span>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Worst Day */}
-              {worstDay && (
-                <div className="bg-white rounded-lg p-4 shadow-sm border border-red-100">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
-                      <span className="text-xl">{worstDay.mood_emoji}</span>
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-500 uppercase tracking-wide">Lowest Day</p>
-                      <p className="font-medium text-gray-900">{worstDay.mood_label}</p>
-                      <p className="text-sm text-gray-600">
-                        {new Date(worstDay.date).toLocaleDateString('en-US', { 
-                          weekday: 'short', 
-                          month: 'short', 
-                          day: 'numeric' 
-                        })}
-                      </p>
-                    </div>
-                    <div className="ml-auto">
-                      <span className="text-lg font-bold text-red-600">{worstDay.mood_score}/10</span>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Mood Distribution */}
-              <div className="bg-white rounded-lg p-4 shadow-sm border border-purple-100">
-                <p className="text-xs text-gray-500 uppercase tracking-wide mb-3">Mood Distribution</p>
-                <div className="flex items-end space-x-1 h-12 mb-2">
-                  {moodDist.map((count, i) => (
-                    <div 
-                      key={i} 
-                      className="w-3 bg-purple-300 rounded-t transition-all hover:bg-purple-400" 
-                      style={{ height: `${Math.max(count * 8, 2)}px` }} 
-                      title={`Score ${i+1}: ${count} days`}
-                    ></div>
-                  ))}
-                </div>
-                <div className="flex justify-between text-xs text-gray-400">
-                  <span>1</span>
-                  <span>5</span>
-                  <span>10</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Quick Tip */}
-            <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-100">
-              <div className="flex items-start space-x-2">
-                <Info className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
-                <p className="text-sm text-blue-800">
-                  <strong>Tip:</strong> {stats.trend > 0 
-                    ? `Great job! Your mood has improved by ${Math.abs(stats.trend)} points this week. Keep it up!`
-                    : stats.trend < 0 
-                    ? `Your mood has dipped by ${Math.abs(stats.trend)} points this week. Consider what might help you feel better.`
-                    : 'Your mood has been stable this week. Consistency is key to understanding your patterns!'
-                  }
-                </p>
+    <>
+      <TopBar isLoggedIn={true} />
+      <div className="min-h-screen bg-gray-50 pt-20">
+        <div className="max-w-7xl mx-auto p-4">
+          {/* Header */}
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center space-x-4">
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900">Mood Tracker</h1>
+                <p className="text-sm text-gray-600">Track your daily well-being</p>
               </div>
             </div>
           </div>
-        )}
 
-        {/* Quick Stats */}
-        {renderQuickStats()}
-
-        {/* View Toggle */}
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center space-x-2">
-            <button
-              onClick={() => setSelectedView('all')}
-              className={`px-3 py-1 text-sm rounded-lg transition-colors ${
-                selectedView === 'all' 
-                  ? 'bg-purple-600 text-white' 
-                  : 'bg-white text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              All Time
-            </button>
-            <button
-              onClick={() => setSelectedView('week')}
-              className={`px-3 py-1 text-sm rounded-lg transition-colors ${
-                selectedView === 'week' 
-                  ? 'bg-purple-600 text-white' 
-                  : 'bg-white text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              This Week
-            </button>
-            <button
-              onClick={() => setSelectedView('month')}
-              className={`px-3 py-1 text-sm rounded-lg transition-colors ${
-                selectedView === 'month' 
-                  ? 'bg-purple-600 text-white' 
-                  : 'bg-white text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              This Month
-            </button>
-          </div>
-        </div>
-
-        {/* Error Message */}
-        {error && (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
-            <div className="flex items-center space-x-2">
-              <div className="w-5 h-5 bg-red-100 rounded-full flex items-center justify-center">
-                <AlertCircle className="w-3 h-3 text-red-600" />
+          {/* Mood Insights Panel - Prominent Position */}
+          {moodEntries.length > 0 && (
+            <div className="bg-gradient-to-r from-purple-50 to-blue-50 rounded-xl p-6 mb-6 border border-purple-100">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-gray-900 flex items-center space-x-2">
+                  <Sparkles className="w-5 h-5 text-purple-600" />
+                  <span>Mood Insights</span>
+                </h3>
+                <span className="text-sm text-gray-500 bg-white px-2 py-1 rounded-full">
+                  {moodEntries.length} entries
+                </span>
               </div>
-              <p className="text-sm text-red-800 flex-1">{error}</p>
-              <button
-                onClick={() => setError(null)}
-                className="text-red-400 hover:text-red-600 transition-colors"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Main Content */}
-        {selectedView === 'week' ? (
-          <div className="grid gap-6 grid-cols-1 lg:grid-cols-2">
-            {renderMoodLineGraph()}
-            {renderMoodTiles()}
-          </div>
-        ) : (
-          <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
-            <div className="text-center py-12">
-              <div className="text-4xl mb-4">📊</div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">Timeline View</h3>
-              <p className="text-gray-600 mb-6">
-                {displayEntries.length === 0 ? 'No entries found' : `${displayEntries.length} entries`}
-              </p>
-              {displayEntries.length > 0 && (
-                <div className="space-y-4 max-h-96 overflow-y-auto">
-                  {displayEntries.map((entry, index) => (
-                    <div key={entry.id} className="flex items-center space-x-4 p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
-                      <span className="text-2xl">{entry.mood_emoji}</span>
-                      <div className="flex-1">
-                        <h4 className="font-medium text-gray-900">{entry.mood_label}</h4>
-                        <p className="text-sm text-gray-500">
-                          {new Date(entry.date).toLocaleDateString('en-US', { 
-                            weekday: 'long', 
+              
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* Best Day */}
+                {bestDay && (
+                  <div className="bg-white rounded-lg p-4 shadow-sm border border-green-100">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
+                        <span className="text-xl">{bestDay.mood_emoji}</span>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500 uppercase tracking-wide">Best Day</p>
+                        <p className="font-medium text-gray-900">{bestDay.mood_label}</p>
+                        <p className="text-sm text-gray-600">
+                          {new Date(bestDay.date).toLocaleDateString('en-US', { 
+                            weekday: 'short', 
                             month: 'short', 
                             day: 'numeric' 
                           })}
                         </p>
                       </div>
-                      <span className="text-sm font-medium text-gray-700">
-                        {entry.mood_score}/10
-                      </span>
+                      <div className="ml-auto">
+                        <span className="text-lg font-bold text-green-600">{bestDay.mood_score}/10</span>
+                      </div>
                     </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-      </div>
+                  </div>
+                )}
 
-      {/* Add Mood Modal */}
-      {showAddModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl max-w-md w-full">
-            <div className="flex items-center justify-between p-4 border-b border-gray-200">
-              <div>
-                <h2 id="mood-modal-title" className="text-lg font-semibold text-gray-900">
-                  {isAutoPopup ? "Welcome back! How are you feeling today?" : "How are you feeling?"}
-                </h2>
-                {isAutoPopup && (
-                  <p className="text-sm text-purple-600 mt-1">Let's start your day with a mood check! 🌟</p>
+                {/* Worst Day */}
+                {worstDay && (
+                  <div className="bg-white rounded-lg p-4 shadow-sm border border-red-100">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
+                        <span className="text-xl">{worstDay.mood_emoji}</span>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500 uppercase tracking-wide">Lowest Day</p>
+                        <p className="font-medium text-gray-900">{worstDay.mood_label}</p>
+                        <p className="text-sm text-gray-600">
+                          {new Date(worstDay.date).toLocaleDateString('en-US', { 
+                            weekday: 'short', 
+                            month: 'short', 
+                            day: 'numeric' 
+                          })}
+                        </p>
+                      </div>
+                      <div className="ml-auto">
+                        <span className="text-lg font-bold text-red-600">{worstDay.mood_score}/10</span>
+                      </div>
+                    </div>
+                  </div>
                 )}
-                {getExistingEntryForDate(newEntry.date) && (
-                  <p className="text-sm text-gray-500 mt-1">Updating mood entry</p>
-                )}
-                {isFutureDate(newEntry.date) && (
-                  <p className="text-sm text-red-500 mt-1">Cannot log mood for future dates</p>
-                )}
+
+                {/* Mood Distribution */}
+                <div className="bg-white rounded-lg p-4 shadow-sm border border-purple-100">
+                  <p className="text-xs text-gray-500 uppercase tracking-wide mb-3">Mood Distribution</p>
+                  <div className="flex items-end space-x-1 h-12 mb-2">
+                    {moodDist.map((count, i) => (
+                      <div 
+                        key={i} 
+                        className="w-3 bg-purple-300 rounded-t transition-all hover:bg-purple-400" 
+                        style={{ height: `${Math.max(count * 8, 2)}px` }} 
+                        title={`Score ${i+1}: ${count} days`}
+                      ></div>
+                    ))}
+                  </div>
+                  <div className="flex justify-between text-xs text-gray-400">
+                    <span>1</span>
+                    <span>5</span>
+                    <span>10</span>
+                  </div>
+                </div>
               </div>
+
+              {/* Quick Tip */}
+              <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-100">
+                <div className="flex items-start space-x-2">
+                  <Info className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                  <p className="text-sm text-blue-800">
+                    <strong>Tip:</strong> {stats.trend > 0 
+                      ? `Great job! Your mood has improved by ${Math.abs(stats.trend)} points this week. Keep it up!`
+                      : stats.trend < 0 
+                      ? `Your mood has dipped by ${Math.abs(stats.trend)} points this week. Consider what might help you feel better.`
+                      : 'Your mood has been stable this week. Consistency is key to understanding your patterns!'
+                    }
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Quick Stats */}
+          {renderQuickStats()}
+
+          {/* View Toggle */}
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center space-x-2">
               <button
-                onClick={() => {
-                  setShowAddModal(false);
-                  setIsAutoPopup(false);
-                }}
-                className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition-colors"
+                onClick={() => setSelectedView('all')}
+                className={`px-3 py-1 text-sm rounded-lg transition-colors ${
+                  selectedView === 'all' 
+                    ? 'bg-purple-600 text-white' 
+                    : 'bg-white text-gray-600 hover:text-gray-900'
+                }`}
               >
-                <X className="w-5 h-5" />
+                All Time
+              </button>
+              <button
+                onClick={() => setSelectedView('week')}
+                className={`px-3 py-1 text-sm rounded-lg transition-colors ${
+                  selectedView === 'week' 
+                    ? 'bg-purple-600 text-white' 
+                    : 'bg-white text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                This Week
+              </button>
+              <button
+                onClick={() => setSelectedView('month')}
+                className={`px-3 py-1 text-sm rounded-lg transition-colors ${
+                  selectedView === 'month' 
+                    ? 'bg-purple-600 text-white' 
+                    : 'bg-white text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                This Month
               </button>
             </div>
-            
-            <div className="p-4 space-y-4">
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-2">Mood</label>
-                <div ref={moodGridRef} className="grid grid-cols-5 gap-2">
-                  {[1,2,3,4,5,6,7,8,9,10].map((score) => (
-                    <button
-                      key={score}
-                      aria-pressed={newEntry.mood_score === score}
-                      onClick={() => setNewEntry(prev => ({ 
-                        ...prev, 
-                        mood_score: score,
-                        mood_emoji: moodEmojis[score as keyof typeof moodEmojis],
-                        mood_label: moodLabels[score as keyof typeof moodLabels]
-                      }))}
-                      className={`flex flex-col items-center space-y-1 p-3 rounded-lg border-2 transition-all hover:scale-105 ${
-                        newEntry.mood_score === score
-                          ? 'border-purple-500 bg-purple-50'
-                          : 'border-gray-200 hover:border-gray-300'
-                      }`}
-                    >
-                      <span className="text-2xl">{moodEmojis[score as keyof typeof moodEmojis]}</span>
-                      <span className="text-xs font-medium text-gray-700">{score}</span>
-                    </button>
-                  ))}
+          </div>
+
+          {/* Error Message */}
+          {error && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+              <div className="flex items-center space-x-2">
+                <div className="w-5 h-5 bg-red-100 rounded-full flex items-center justify-center">
+                  <AlertCircle className="w-3 h-3 text-red-600" />
                 </div>
-                <p className="text-xs text-gray-500 mt-2 text-center">
-                  {moodLabels[newEntry.mood_score as keyof typeof moodLabels]}
-                </p>
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">Note (optional)</label>
-                <textarea
-                  placeholder="Add notes about your mood..."
-                  value={newEntry.notes}
-                  onChange={(e) => setNewEntry(prev => ({ ...prev, notes: e.target.value }))}
-                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none"
-                  rows={3}
-                />
-              </div>
-
-              <div className="flex items-center space-x-3 pt-2">
+                <p className="text-sm text-red-800 flex-1">{error}</p>
                 <button
-                  onClick={addMoodEntry}
-                  disabled={isFutureDate(newEntry.date) || saving}
-                  className={`flex-1 px-4 py-2 rounded-lg transition-colors text-sm font-medium flex items-center justify-center space-x-2 ${
-                    isFutureDate(newEntry.date) || saving
-                      ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                      : 'bg-purple-600 text-white hover:bg-purple-700'
-                  }`}
+                  onClick={() => setError(null)}
+                  className="text-red-400 hover:text-red-600 transition-colors"
                 >
-                  {saving ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      <span>Saving...</span>
-                    </>
-                  ) : (
-                    <span>{getExistingEntryForDate(newEntry.date) ? 'Update Mood' : 'Save Mood'}</span>
-                  )}
+                  <X className="w-4 h-4" />
                 </button>
+              </div>
+            </div>
+          )}
+
+          {/* Main Content */}
+          {selectedView === 'week' ? (
+            <div className="grid gap-6 grid-cols-1 lg:grid-cols-2">
+              {renderMoodLineGraph()}
+              {renderMoodTiles()}
+            </div>
+          ) : (
+            <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
+              <div className="text-center py-12">
+                <div className="text-4xl mb-4">📊</div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">Timeline View</h3>
+                <p className="text-gray-600 mb-6">
+                  {displayEntries.length === 0 ? 'No entries found' : `${displayEntries.length} entries`}
+                </p>
+                {displayEntries.length > 0 && (
+                  <div className="space-y-4 max-h-96 overflow-y-auto">
+                    {displayEntries.map((entry, index) => (
+                      <div key={entry.id} className="flex items-center space-x-4 p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+                        <span className="text-2xl">{entry.mood_emoji}</span>
+                        <div className="flex-1">
+                          <h4 className="font-medium text-gray-900">{entry.mood_label}</h4>
+                          <p className="text-sm text-gray-500">
+                            {new Date(entry.date).toLocaleDateString('en-US', { 
+                              weekday: 'long', 
+                              month: 'short', 
+                              day: 'numeric' 
+                            })}
+                          </p>
+                        </div>
+                        <span className="text-sm font-medium text-gray-700">
+                          {entry.mood_score}/10
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Add Mood Modal */}
+        {showAddModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl shadow-xl max-w-md w-full">
+              <div className="flex items-center justify-between p-4 border-b border-gray-200">
+                <div>
+                  <h2 id="mood-modal-title" className="text-lg font-semibold text-gray-900">
+                    {isAutoPopup ? "Welcome back! How are you feeling today?" : "How are you feeling?"}
+                  </h2>
+                  {isAutoPopup && (
+                    <p className="text-sm text-purple-600 mt-1">Let's start your day with a mood check! 🌟</p>
+                  )}
+                  {getExistingEntryForDate(newEntry.date) && (
+                    <p className="text-sm text-gray-500 mt-1">Updating mood entry</p>
+                  )}
+                  {isFutureDate(newEntry.date) && (
+                    <p className="text-sm text-red-500 mt-1">Cannot log mood for future dates</p>
+                  )}
+                </div>
                 <button
                   onClick={() => {
                     setShowAddModal(false);
                     setIsAutoPopup(false);
                   }}
-                  className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors text-sm"
+                  className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition-colors"
                 >
-                  Cancel
+                  <X className="w-5 h-5" />
                 </button>
+              </div>
+              
+              <div className="p-4 space-y-4">
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-2">Mood</label>
+                  <div ref={moodGridRef} className="grid grid-cols-5 gap-2">
+                    {[1,2,3,4,5,6,7,8,9,10].map((score) => (
+                      <button
+                        key={score}
+                        aria-pressed={newEntry.mood_score === score}
+                        onClick={() => setNewEntry(prev => ({ 
+                          ...prev, 
+                          mood_score: score,
+                          mood_emoji: moodEmojis[score as keyof typeof moodEmojis],
+                          mood_label: moodLabels[score as keyof typeof moodLabels]
+                        }))}
+                        className={`flex flex-col items-center space-y-1 p-3 rounded-lg border-2 transition-all hover:scale-105 ${
+                          newEntry.mood_score === score
+                            ? 'border-purple-500 bg-purple-50'
+                            : 'border-gray-200 hover:border-gray-300'
+                        }`}
+                      >
+                        <span className="text-2xl">{moodEmojis[score as keyof typeof moodEmojis]}</span>
+                        <span className="text-xs font-medium text-gray-700">{score}</span>
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-xs text-gray-500 mt-2 text-center">
+                    {moodLabels[newEntry.mood_score as keyof typeof moodLabels]}
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Note (optional)</label>
+                  <textarea
+                    placeholder="Add notes about your mood..."
+                    value={newEntry.notes}
+                    onChange={(e) => setNewEntry(prev => ({ ...prev, notes: e.target.value }))}
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none"
+                    rows={3}
+                  />
+                </div>
+
+                <div className="flex items-center space-x-3 pt-2">
+                  <button
+                    onClick={addMoodEntry}
+                    disabled={isFutureDate(newEntry.date) || saving}
+                    className={`flex-1 px-4 py-2 rounded-lg transition-colors text-sm font-medium flex items-center justify-center space-x-2 ${
+                      isFutureDate(newEntry.date) || saving
+                        ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                        : 'bg-purple-600 text-white hover:bg-purple-700'
+                    }`}
+                  >
+                    {saving ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>Saving...</span>
+                      </>
+                    ) : (
+                      <span>{getExistingEntryForDate(newEntry.date) ? 'Update Mood' : 'Save Mood'}</span>
+                    )}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowAddModal(false);
+                      setIsAutoPopup(false);
+                    }}
+                    className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors text-sm"
+                  >
+                    Cancel
+                  </button>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
-      <style jsx>{`
-        @keyframes draw {
-          to {
-            stroke-dashoffset: 0;
+        <style jsx>{`
+          @keyframes draw {
+            to {
+              stroke-dashoffset: 0;
+            }
           }
-        }
-      `}</style>
-    </div>
+        `}</style>
+      </div>
+    </>
   );
 } 

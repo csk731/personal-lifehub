@@ -56,7 +56,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body
-        className={`${inter.variable} font-inter antialiased`}
+        className={`${inter.variable} font-inter antialiased bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50`}
       >
         {children}
       </body>

@@ -94,8 +94,8 @@ RESTful API routes for all operations:
    ```
 
 5. **Start the development server**
-   ```bash
-   npm run dev
+```bash
+npm run dev
    ```
 
 ## 📁 Project Structure

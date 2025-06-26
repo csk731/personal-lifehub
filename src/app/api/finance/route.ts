@@ -21,6 +21,7 @@ export async function GET(request: NextRequest) {
     const startDate = searchParams.get('start_date')
     const endDate = searchParams.get('end_date')
     const days = searchParams.get('days') ? parseInt(searchParams.get('days')!) : 30
+    const timezone = searchParams.get('timezone') || 'UTC'
     const limit = searchParams.get('limit') ? parseInt(searchParams.get('limit')!) : 50
 
     let query = supabase
@@ -33,8 +34,31 @@ export async function GET(request: NextRequest) {
     if (startDate && endDate) {
       query = query.gte('date', startDate).lte('date', endDate)
     } else {
-      // Fallback to days parameter
-      query = query.gte('date', new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().split('T')[0])
+      // Calculate date range in user's timezone
+      const now = new Date()
+      const todayInUserTz = new Intl.DateTimeFormat('en-CA', { timeZone: timezone }).format(now)
+      
+      // For "today" filter, we need to get the start of today in user's timezone
+      if (days === 1) {
+        // Get today's date in user timezone
+        const todayStart = new Date(todayInUserTz + 'T00:00:00')
+        const todayEnd = new Date(todayInUserTz + 'T23:59:59')
+        
+        // Convert to UTC for database query
+        const todayStartUtc = new Date(todayStart.getTime() - (todayStart.getTimezoneOffset() * 60000))
+        const todayEndUtc = new Date(todayEnd.getTime() - (todayEnd.getTimezoneOffset() * 60000))
+        
+        query = query.gte('date', todayStartUtc.toISOString()).lte('date', todayEndUtc.toISOString())
+      } else {
+        // For other filters, calculate the date range
+        const startDate = new Date(now.getTime() - days * 24 * 60 * 60 * 1000)
+        const startDateInUserTz = new Intl.DateTimeFormat('en-CA', { timeZone: timezone }).format(startDate)
+        
+        const startDateUtc = new Date(startDateInUserTz + 'T00:00:00')
+        const startDateUtcAdjusted = new Date(startDateUtc.getTime() - (startDateUtc.getTimezoneOffset() * 60000))
+        
+        query = query.gte('date', startDateUtcAdjusted.toISOString())
+      }
     }
 
     if (type) {

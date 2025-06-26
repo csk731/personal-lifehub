@@ -145,6 +145,36 @@ export function TaskWidget({ widgetId, title, config, widget }: TaskWidgetProps)
     }
   }
 
+  /**
+   * Returns true if dueDate is today (local time by default).
+   * Pass useUTC=true to compare in UTC.
+   */
+  function isDueToday(dueDate: string | null): boolean {
+    if (!dueDate) return false;
+    const due = new Date(dueDate);
+    const today = new Date();
+    return (
+      due.getUTCFullYear() === today.getUTCFullYear() &&
+      due.getUTCMonth() === today.getUTCMonth() &&
+      due.getUTCDate() === today.getUTCDate()
+    );
+  }
+
+  function isOverdue(dueDate: string | null): boolean {
+    if (!dueDate) return false;
+    const due = new Date(dueDate);
+    const now = new Date();
+    // Compare only the UTC date parts
+    if (
+      due.getUTCFullYear() < now.getUTCFullYear() ||
+      (due.getUTCFullYear() === now.getUTCFullYear() && due.getUTCMonth() < now.getUTCMonth()) ||
+      (due.getUTCFullYear() === now.getUTCFullYear() && due.getUTCMonth() === now.getUTCMonth() && due.getUTCDate() < now.getUTCDate())
+    ) {
+      return true;
+    }
+    return false;
+  }
+
   const getImportantTasks = () => {
     const today = new Date().toISOString().split('T')[0]
     
@@ -160,8 +190,8 @@ export function TaskWidget({ widgetId, title, config, widget }: TaskWidgetProps)
         if (b.priority === 'high' && a.priority !== 'high') return 1
         
         // Third: due today
-        if (a.due_date === today && b.due_date !== today) return -1
-        if (b.due_date === today && a.due_date !== today) return 1
+        if (isDueToday(a.due_date) && !isDueToday(b.due_date)) return -1
+        if (isDueToday(b.due_date) && !isDueToday(a.due_date)) return 1
         
         // Fourth: due soon
         if (a.due_date && b.due_date) {
@@ -171,10 +201,6 @@ export function TaskWidget({ widgetId, title, config, widget }: TaskWidgetProps)
         return 0
       })
       .slice(0, maxItems)
-  }
-
-  const isOverdue = (dueDate: string) => {
-    return new Date(dueDate) < new Date()
   }
 
   const handleViewMore = () => {
