@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
-import { LogOut, HelpCircle, X, Home as HomeIcon, Bell, User, Settings as SettingsIcon } from 'lucide-react';
+import { LogOut, HelpCircle, X, Home as HomeIcon, User, Settings as SettingsIcon } from 'lucide-react';
 import { getAuthHeaders } from '@/lib/utils';
 import { ProfileManager } from '../profile/ProfileManager';
 import Link from 'next/link';
@@ -60,59 +60,39 @@ export function TopBar({ isLoggedIn }: { isLoggedIn?: boolean }) {
           {isLoggedIn ? (
             <>
               {/* Home Button */}
-              <Link href="/dashboard" title="Home" className="p-2 rounded-lg hover:bg-gray-100 transition-colors group" aria-label="Home">
-                <HomeIcon className="w-6 h-6 text-gray-700 group-hover:text-blue-600" />
-                <span className="sr-only">Home</span>
-                <span className="absolute left-1/2 top-full mt-2 -translate-x-1/2 bg-gray-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">
+              <div className="relative group">
+                <Link href="/dashboard" title="Home" className="p-2 rounded-lg hover:bg-gray-100 transition-colors block" aria-label="Home">
+                  <HomeIcon className="w-6 h-6 text-gray-700 group-hover:text-blue-600" />
+                  <span className="sr-only">Home</span>
+                </Link>
+                <span className="absolute left-1/2 top-full mt-2 -translate-x-1/2 bg-gray-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
                   Home
                 </span>
-              </Link>
-              {/* Notifications */}
-              <button
-                className="p-2 rounded-lg hover:bg-gray-100 transition-colors relative group"
-                title="Notifications"
-                aria-label="Notifications"
-                tabIndex={0}
-                onClick={() => alert('Notifications coming soon!')}
-              >
-                <Bell className="w-5 h-5 text-gray-600 group-hover:text-blue-600" />
-                <span className="absolute left-1/2 top-full mt-2 -translate-x-1/2 bg-gray-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">
-                  Notifications
-                </span>
-              </button>
+              </div>
               {/* Help Button */}
-              <button
-                onClick={() => setShowHelpModal(true)}
-                className="p-2 rounded-lg hover:bg-gray-100 transition-colors relative group"
-                title="Keyboard Shortcuts & Help"
-                aria-label="Show keyboard shortcuts help"
-              >
-                <HelpCircle className="w-5 h-5 text-gray-600 group-hover:text-blue-600" />
-                <span className="absolute left-1/2 top-full mt-2 -translate-x-1/2 bg-gray-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">
+              <div className="relative group">
+                <button
+                  onClick={() => setShowHelpModal(true)}
+                  className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
+                  title="Keyboard Shortcuts & Help"
+                  aria-label="Show keyboard shortcuts help"
+                >
+                  <HelpCircle className="w-5 h-5 text-gray-600 group-hover:text-blue-600" />
+                </button>
+                <span className="absolute left-1/2 top-full mt-2 -translate-x-1/2 bg-gray-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
                   Help
                 </span>
-              </button>
+              </div>
               {/* Profile Dropdown */}
               <div className="relative" ref={profileDropdownRef}>
                 <button
-                  className="flex items-center space-x-2 p-1 rounded-lg hover:bg-gray-100 transition-colors group focus:outline-none"
+                  className="flex items-center space-x-2 p-2 rounded-lg hover:bg-gray-100 transition-colors group focus:outline-none"
                   onClick={() => setShowProfileDropdown(v => !v)}
                   aria-haspopup="true"
                   aria-expanded={showProfileDropdown}
                   aria-label="Open profile menu"
                 >
-                  <div className="w-8 h-8 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full flex items-center justify-center overflow-hidden">
-                    {profile?.avatar_url ? (
-                      <img src={profile.avatar_url} alt="Avatar" className="w-8 h-8 rounded-full object-cover" />
-                    ) : (
-                      <span className="text-white text-sm font-medium">
-                        {profile?.full_name?.charAt(0) || 'U'}
-                      </span>
-                    )}
-                  </div>
-                  <span className="hidden md:block max-w-[120px] truncate text-sm font-medium text-gray-900">
-                    {profile?.full_name || 'User'}
-                  </span>
+                  <User className="w-5 h-5 text-gray-600 group-hover:text-blue-600" />
                   <svg className="w-4 h-4 text-gray-400 group-hover:text-blue-600" fill="none" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
                 </button>
                 {showProfileDropdown && (
@@ -138,13 +118,6 @@ export function TopBar({ isLoggedIn }: { isLoggedIn?: boolean }) {
                     >
                       <User className="w-4 h-4 text-blue-600" />
                       <span>Profile</span>
-                    </button>
-                    <button
-                      className="w-full flex items-center space-x-3 px-4 py-2 text-sm text-gray-700 hover:bg-blue-50 transition-colors"
-                      onClick={() => { setShowProfileDropdown(false); alert('Settings coming soon!'); }}
-                    >
-                      <SettingsIcon className="w-4 h-4 text-purple-600" />
-                      <span>Settings</span>
                     </button>
                     <button
                       className="w-full flex items-center space-x-3 px-4 py-2 text-sm text-gray-700 hover:bg-red-50 transition-colors"
@@ -173,16 +146,17 @@ export function TopBar({ isLoggedIn }: { isLoggedIn?: boolean }) {
             >
               <X className="w-6 h-6" />
             </button>
-            <h2 className="text-xl font-bold mb-4 text-gray-900">Keyboard Shortcuts & Help</h2>
-            <ul className="space-y-2 text-gray-700 text-sm">
-              <li><span className="font-semibold">Ctrl/Cmd + N</span>: Add new widget</li>
-              <li><span className="font-semibold">Ctrl/Cmd + T</span>: Go to tasks</li>
-              <li><span className="font-semibold">Ctrl/Cmd + M</span>: Go to mood</li>
-              <li><span className="font-semibold">Ctrl/Cmd + F</span>: Go to finance</li>
-              <li><span className="font-semibold">?</span>: Open this help</li>
-              <li><span className="font-semibold">Esc</span>: Close modals/menus</li>
-            </ul>
-            <div className="mt-6 text-xs text-gray-400 text-center">More help & tips coming soon!</div>
+            <h2 className="text-xl font-bold mb-4 text-gray-900">Help</h2>
+            <div className="text-gray-700 text-sm">
+              <p className="mb-4">Welcome to LifeHub! Here are some tips to get you started:</p>
+              <ul className="space-y-2 list-disc list-inside">
+                <li>Use the navigation menu to switch between different sections</li>
+                <li>Add widgets to your dashboard to customize your experience</li>
+                <li>Click on your profile picture to access your profile settings</li>
+                <li>Use the search and filter options to find what you need quickly</li>
+              </ul>
+            </div>
+            <div className="mt-6 text-xs text-gray-400 text-center">More features and tips coming soon!</div>
           </div>
         </div>
       )}

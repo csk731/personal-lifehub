@@ -127,7 +127,6 @@ export function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showWidgetPicker, setShowWidgetPicker] = useState(false);
-  const [showKeyboardHelp, setShowKeyboardHelp] = useState(false);
   const [addingWidget, setAddingWidget] = useState<string | null>(null);
   const [user, setUser] = useState<any>(null);
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -210,53 +209,6 @@ export function Dashboard() {
     
     return recommendations.slice(0, 3); // Return top 3 recommendations
   };
-
-  // Keyboard shortcuts
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Only handle shortcuts when not in input fields
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
-        return;
-      }
-
-      // Ctrl/Cmd + N: Add new widget
-      if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
-        e.preventDefault();
-        setShowWidgetPicker(true);
-      }
-
-      // Ctrl/Cmd + T: Go to tasks
-      if ((e.ctrlKey || e.metaKey) && e.key === 't') {
-        e.preventDefault();
-        router.push('/dashboard/tasks');
-      }
-
-      // Ctrl/Cmd + M: Go to mood
-      if ((e.ctrlKey || e.metaKey) && e.key === 'm') {
-        e.preventDefault();
-        router.push('/dashboard/mood');
-      }
-
-      // Ctrl/Cmd + F: Go to finance
-      if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
-        e.preventDefault();
-        router.push('/dashboard/finance');
-      }
-
-      // Escape: Close modals
-      if (e.key === 'Escape') {
-        if (showWidgetPicker) {
-          setShowWidgetPicker(false);
-        }
-        if (sidebarOpen) {
-          setSidebarOpen(false);
-        }
-      }
-    };
-
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [showWidgetPicker, sidebarOpen, router]);
 
   useEffect(() => {
     checkUser();
@@ -907,11 +859,10 @@ export function Dashboard() {
               </div>
               <button
                 onClick={() => setShowWidgetPicker(true)}
-                className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white text-base rounded-lg hover:bg-blue-700 transition-all duration-200 hover:scale-105 shadow"
-                title="Add Widget (Ctrl+N)"
+                title="Add Widget"
+                className="fixed bottom-6 right-6 w-14 h-14 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-full shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all duration-200 flex items-center justify-center z-30"
               >
-                <Plus className="w-5 h-5" />
-                <span>Add Widget</span>
+                <Plus className="w-6 h-6" />
               </button>
             </div>
 
@@ -1062,99 +1013,6 @@ export function Dashboard() {
                     ))}
                   </div>
                 )}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Keyboard Shortcuts Help Modal */}
-        {showKeyboardHelp && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden">
-              <div className="flex items-center justify-between p-6 border-b border-gray-200">
-                <div>
-                  <h2 className="text-2xl font-bold text-gray-900">Keyboard Shortcuts</h2>
-                  <p className="text-gray-600 mt-1">Use these shortcuts to navigate and manage your dashboard</p>
-                </div>
-                <button
-                  onClick={() => setShowKeyboardHelp(false)}
-                  className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-                >
-                  <X className="w-6 h-6" />
-                </button>
-              </div>
-
-              <div className="p-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-4">
-                    <h3 className="font-semibold text-gray-900 mb-3">Navigation</h3>
-                    <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                      <div className="flex items-center space-x-3">
-                        <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
-                          <CheckCircle className="w-4 h-4 text-blue-600" />
-                        </div>
-                        <span className="text-sm font-medium text-gray-900">Go to Tasks</span>
-                      </div>
-                      <kbd className="px-2 py-1 text-xs font-semibold text-gray-800 bg-gray-200 border border-gray-300 rounded">Ctrl+T</kbd>
-                    </div>
-                    <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                      <div className="flex items-center space-x-3">
-                        <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center">
-                          <TrendingUp className="w-4 h-4 text-green-600" />
-                        </div>
-                        <span className="text-sm font-medium text-gray-900">Go to Mood</span>
-                      </div>
-                      <kbd className="px-2 py-1 text-xs font-semibold text-gray-800 bg-gray-200 border border-gray-300 rounded">Ctrl+M</kbd>
-                    </div>
-                    <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                      <div className="flex items-center space-x-3">
-                        <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center">
-                          <TrendingUp className="w-4 h-4 text-purple-600" />
-                        </div>
-                        <span className="text-sm font-medium text-gray-900">Go to Finance</span>
-                      </div>
-                      <kbd className="px-2 py-1 text-xs font-semibold text-gray-800 bg-gray-200 border border-gray-300 rounded">Ctrl+F</kbd>
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-4">
-                    <h3 className="font-semibold text-gray-900 mb-3">Actions</h3>
-                    <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                      <div className="flex items-center space-x-3">
-                        <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center">
-                          <Grid3X3 className="w-4 h-4 text-gray-600" />
-                        </div>
-                        <span className="text-sm font-medium text-gray-900">Add Widget</span>
-                      </div>
-                      <kbd className="px-2 py-1 text-xs font-semibold text-gray-800 bg-gray-200 border border-gray-300 rounded">Ctrl+N</kbd>
-                    </div>
-                    <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                      <div className="flex items-center space-x-3">
-                        <div className="w-8 h-8 bg-red-100 rounded-lg flex items-center justify-center">
-                          <X className="w-4 h-4 text-red-600" />
-                        </div>
-                        <span className="text-sm font-medium text-gray-900">Close Modals</span>
-                      </div>
-                      <kbd className="px-2 py-1 text-xs font-semibold text-gray-800 bg-gray-200 border border-gray-300 rounded">Esc</kbd>
-                    </div>
-                    <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                      <div className="flex items-center space-x-3">
-                        <div className="w-8 h-8 bg-yellow-100 rounded-lg flex items-center justify-center">
-                          <HelpCircle className="w-4 h-4 text-yellow-600" />
-                        </div>
-                        <span className="text-sm font-medium text-gray-900">Show Help</span>
-                      </div>
-                      <kbd className="px-2 py-1 text-xs font-semibold text-gray-800 bg-gray-200 border border-gray-300 rounded">?</kbd>
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="mt-6 p-4 bg-blue-50 rounded-lg">
-                  <p className="text-sm text-blue-800">
-                    <strong>Tip:</strong> These shortcuts work when you're not typing in input fields. 
-                    Use them to navigate quickly and boost your productivity!
-                  </p>
-                </div>
               </div>
             </div>
           </div>
