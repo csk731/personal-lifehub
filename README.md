@@ -1,36 +1,192 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# LifeHub - Personal Management Platform
 
-## Getting Started
+A modern, highly customizable personal management platform built with Next.js 15, Supabase, and TypeScript. LifeHub provides a widget-based dashboard for managing tasks, tracking mood, monitoring finances, and more.
 
-First, run the development server:
+## 🚀 Features
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+### **Dynamic Widget System**
+- **Database-Driven**: All widgets are stored and managed in Supabase
+- **Modular Architecture**: Easy to add new widget types
+- **Real-time Updates**: Live data fetching and updates
+- **Customizable**: Each widget has configurable settings
+
+### **Built-in Widgets**
+1. **Task Manager** 
+   - Add, complete, and manage tasks
+   - Priority levels (low, medium, high, urgent)
+   - Status tracking (pending, in progress, completed)
+   - Due date support
+
+2. **Mood Tracker**
+   - Daily mood logging with emojis and scores (1-10)
+   - Trend analysis and averages
+   - Optional notes for context
+   - Historical view of recent entries
+
+3. **Finance Tracker**
+   - Income and expense tracking
+   - Category-based organization
+   - Budget progress monitoring
+   - Real-time balance calculations
+
+### **Technical Stack**
+- **Frontend**: Next.js 15 (App Router), TypeScript, Tailwind CSS
+- **Backend**: Supabase (PostgreSQL, Auth, RLS)
+- **State Management**: Zustand
+- **UI Components**: Custom components with Lucide icons
+- **Authentication**: Supabase Auth (ready for implementation)
+
+## 🏗️ Architecture
+
+### **Database Schema**
+The application uses a comprehensive PostgreSQL schema with:
+- **User profiles** extending Supabase auth
+- **Widget types** defining available widget categories
+- **User widgets** for personalized dashboard layouts
+- **Domain-specific tables** (tasks, mood_entries, finance_entries, etc.)
+- **Row Level Security** for data isolation
+
+### **API Layer**
+RESTful API routes for all operations:
+- `/api/widgets` - User widget management
+- `/api/widget-types` - Available widget types
+- `/api/tasks` - Task operations
+- `/api/mood` - Mood tracking
+- `/api/finance` - Financial data
+
+### **Widget System**
+- **Component Registry**: Dynamic widget loading
+- **Configuration System**: JSON-based widget settings
+- **Data Fetching**: Each widget manages its own API calls
+- **Error Handling**: Comprehensive error states and retry mechanisms
+
+## 🛠️ Setup Instructions
+
+### **Prerequisites**
+- Node.js 18+ 
+- Supabase account
+- Git
+
+### **Installation**
+
+1. **Clone the repository**
+   ```bash
+   git clone <repository-url>
+   cd lifehub
+   ```
+
+2. **Install dependencies**
+   ```bash
+   npm install
+   ```
+
+3. **Set up Supabase**
+   - Create a new Supabase project
+   - Run the SQL schema from `supabase/schema.sql`
+   - Configure Row Level Security policies
+
+4. **Environment Configuration**
+   Create `.env.local` with:
+   ```bash
+   NEXT_PUBLIC_SUPABASE_URL=your_supabase_project_url
+   NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+   SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
+   ```
+
+5. **Start the development server**
+   ```bash
+   npm run dev
+   ```
+
+## 📁 Project Structure
+
+```
+lifehub/
+├── src/
+│   ├── app/
+│   │   ├── api/                 # API routes
+│   │   │   ├── tasks/          # Task management API
+│   │   │   ├── mood/           # Mood tracking API
+│   │   │   ├── finance/        # Finance tracking API
+│   │   │   ├── widgets/        # Widget management API
+│   │   │   └── widget-types/   # Widget types API
+│   │   ├── dashboard/          # Dashboard page
+│   │   └── layout.tsx          # Root layout
+│   ├── components/
+│   │   ├── dashboard/          # Dashboard components
+│   │   ├── widgets/            # Widget components
+│   │   └── ui/                 # Shared UI components
+│   ├── lib/
+│   │   ├── supabase.ts         # Supabase client
+│   │   └── utils.ts            # Utility functions
+│   ├── store/                  # Zustand stores
+│   └── types/                  # TypeScript definitions
+├── supabase/
+│   └── schema.sql              # Database schema
+└── public/                     # Static assets
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## 🔧 Adding New Widgets
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+1. **Create the widget component** in `src/components/widgets/`
+2. **Add API routes** if needed in `src/app/api/`
+3. **Register the component** in `Dashboard.tsx`
+4. **Add widget type** to the database via SQL or admin interface
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Example widget component:
+```typescript
+interface MyWidgetProps {
+  widgetId: string
+  title: string
+  config: Record<string, any>
+}
 
-## Learn More
+export function MyWidget({ widgetId, title, config }: MyWidgetProps) {
+  // Widget implementation
+  return (
+    <WidgetWrapper title={title}>
+      {/* Widget content */}
+    </WidgetWrapper>
+  )
+}
+```
 
-To learn more about Next.js, take a look at the following resources:
+## 🔐 Security Features
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- **Row Level Security**: Database-level access control
+- **API Authentication**: Protected routes with user verification
+- **Input Validation**: Comprehensive data validation
+- **Error Handling**: Graceful error states and fallbacks
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## 🚧 Current Limitations
 
-## Deploy on Vercel
+- Authentication system needs Supabase setup
+- Some widget types are placeholders (Weather, Calendar, etc.)
+- No drag-and-drop widget positioning yet
+- Limited widget customization options
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## 🎯 Roadmap
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- [ ] Complete authentication integration
+- [ ] Drag-and-drop dashboard layout
+- [ ] More widget types (Weather, Calendar, Notes, Habits)
+- [ ] Widget customization interface
+- [ ] Data export/import
+- [ ] Mobile responsive improvements
+- [ ] Performance optimizations
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Add tests if applicable
+5. Submit a pull request
+
+## 📝 License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+---
+
+Built with ❤️ using Next.js, Supabase, and modern web technologies.
