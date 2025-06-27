@@ -143,7 +143,7 @@ export function AddTaskModal({ open, onClose, onSuccess }: { open: boolean, onCl
                     setShowSuggestions(false);
                   }
                 }}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-gray-700 placeholder-gray-400 bg-white"
                 placeholder="What needs to be done?"
                 autoFocus
               />
@@ -194,7 +194,7 @@ export function AddTaskModal({ open, onClose, onSuccess }: { open: boolean, onCl
                   id="task-priority"
                   value={newTask.priority}
                   onChange={(e) => setNewTask(prev => ({ ...prev, priority: e.target.value as any }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-gray-700 bg-white"
                 >
                   <option value="low">🟢 Low</option>
                   <option value="medium">🟡 Medium</option>
@@ -211,7 +211,7 @@ export function AddTaskModal({ open, onClose, onSuccess }: { open: boolean, onCl
                   id="task-category"
                   value={newTask.category}
                   onChange={(e) => setNewTask(prev => ({ ...prev, category: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-gray-700 bg-white"
                 >
                   {Object.entries(categoryIcons).map(([key, icon]) => (
                     <option key={key} value={key}>

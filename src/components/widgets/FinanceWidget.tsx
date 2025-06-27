@@ -182,7 +182,7 @@ export function FinanceWidget({ widgetId, title, config, widget }: FinanceWidget
         <div className="flex items-center justify-center h-full">
           <div className="text-center">
             <div className="w-8 h-8 border-2 border-purple-200 border-t-purple-600 rounded-full animate-spin mx-auto mb-2"></div>
-            <p className="text-sm text-gray-500">Loading transactions...</p>
+            <p className="text-sm text-gray-600">Loading transactions...</p>
           </div>
         </div>
       </WidgetWrapper>
@@ -313,8 +313,8 @@ export function FinanceWidget({ widgetId, title, config, widget }: FinanceWidget
             <div className="flex items-center justify-center h-full p-4">
               <div className="text-center">
                 <DollarSign className="w-8 h-8 text-gray-300 mx-auto mb-2" />
-                <p className="text-sm text-gray-500">No transactions</p>
-                <p className="text-xs text-gray-400 mt-1">Add your first transaction</p>
+                <p className="text-sm text-gray-600">No transactions</p>
+                <p className="text-xs text-gray-500 mt-1">Add your first transaction</p>
               </div>
             </div>
           ) : (

@@ -2,8 +2,8 @@
 
 import React from 'react';
 import { WidgetProps } from '@/types';
-import WidgetWrapper from './WidgetWrapper';
-import { Calendar, CheckSquare, TrendingUp } from 'lucide-react';
+import { WidgetWrapper } from './WidgetWrapper';
+import { Calendar, CheckSquare, TrendingUp, Cloud, Sun, Droplets, Wind } from 'lucide-react';
 
 const SampleWidget: React.FC<WidgetProps> = (props) => {
   const { widget } = props;
@@ -48,7 +48,7 @@ const SampleWidget: React.FC<WidgetProps> = (props) => {
             <div className="grid grid-cols-7 gap-1">
               {['😊', '😐', '😊', '😴', '😊', '😄', '😊'].map((emoji, index) => (
                 <div
-                  key={index}
+                  key={`mood-${index}-${emoji}`}
                   className="aspect-square bg-muted rounded text-center text-xs flex items-center justify-center"
                 >
                   {emoji}
@@ -93,6 +93,36 @@ const SampleWidget: React.FC<WidgetProps> = (props) => {
           </div>
         );
 
+      case 'weather':
+        return (
+          <div className="space-y-4">
+            <div className="flex items-center space-x-2 text-muted-foreground">
+              <Cloud className="w-5 h-5" />
+              <span className="text-sm font-medium">Weather</span>
+            </div>
+            <div className="text-center space-y-2">
+              <div className="flex items-center justify-center space-x-3">
+                <Sun className="w-8 h-8 text-yellow-500" />
+                <div>
+                  <div className="text-2xl font-bold">22°C</div>
+                  <div className="text-xs text-muted-foreground">Feels like 24°C</div>
+                </div>
+              </div>
+              <div className="text-sm font-medium">Partly cloudy</div>
+            </div>
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              <div className="flex items-center space-x-1">
+                <Droplets className="w-3 h-3 text-blue-500" />
+                <span>Humidity: 65%</span>
+              </div>
+              <div className="flex items-center space-x-1">
+                <Wind className="w-3 h-3 text-gray-500" />
+                <span>Wind: 15 km/h</span>
+              </div>
+            </div>
+          </div>
+        );
+
       default:
         return (
           <div className="text-center py-8">
@@ -109,7 +139,7 @@ const SampleWidget: React.FC<WidgetProps> = (props) => {
   };
 
   return (
-    <WidgetWrapper {...props}>
+    <WidgetWrapper widget={widget}>
       {renderContent()}
     </WidgetWrapper>
   );

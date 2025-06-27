@@ -138,4 +138,118 @@ export interface Database {
       };
     };
   };
+}
+
+export interface WeatherData {
+  location: WeatherLocation;
+  current: CurrentWeather;
+  forecast?: DailyForecast[];
+  lastUpdated: string;
+}
+
+export interface WeatherLocation {
+  name: string;
+  region?: string;
+  country: string;
+  lat: number;
+  lon: number;
+  timezone: string;
+  localtime: string;
+}
+
+export interface CurrentWeather {
+  temp_c: number;
+  temp_f: number;
+  condition: WeatherCondition;
+  humidity: number;
+  wind_kph: number;
+  wind_mph: number;
+  wind_dir: string;
+  pressure_mb: number;
+  feelslike_c: number;
+  feelslike_f: number;
+  uv: number;
+  visibility_km: number;
+  cloud: number;
+  is_day: boolean;
+}
+
+export interface WeatherCondition {
+  text: string;
+  icon: string;
+  code: number;
+}
+
+export interface DailyForecast {
+  date: string;
+  day: {
+    maxtemp_c: number;
+    maxtemp_f: number;
+    mintemp_c: number;
+    mintemp_f: number;
+    avgtemp_c: number;
+    avgtemp_f: number;
+    maxwind_kph: number;
+    maxwind_mph: number;
+    totalprecip_mm: number;
+    totalprecip_in: number;
+    avgvis_km: number;
+    avgvis_miles: number;
+    avghumidity: number;
+    daily_chance_of_rain: number;
+    daily_chance_of_snow: number;
+    condition: WeatherCondition;
+    uv: number;
+  };
+  astro: {
+    sunrise: string;
+    sunset: string;
+    moonrise: string;
+    moonset: string;
+    moon_phase: string;
+    moon_illumination: string;
+  };
+  hour: HourlyForecast[];
+}
+
+export interface HourlyForecast {
+  time: string;
+  temp_c: number;
+  temp_f: number;
+  condition: WeatherCondition;
+  wind_kph: number;
+  wind_mph: number;
+  wind_dir: string;
+  pressure_mb: number;
+  precip_mm: number;
+  precip_in: number;
+  humidity: number;
+  cloud: number;
+  feelslike_c: number;
+  feelslike_f: number;
+  windchill_c: number;
+  windchill_f: number;
+  heatindex_c: number;
+  heatindex_f: number;
+  dewpoint_c: number;
+  dewpoint_f: number;
+  will_it_rain: number;
+  chance_of_rain: number;
+  will_it_snow: number;
+  chance_of_snow: number;
+  vis_km: number;
+  vis_miles: number;
+  gust_kph: number;
+  gust_mph: number;
+  uv: number;
+  is_day: boolean;
+}
+
+export interface WeatherSettings {
+  location: string;
+  unit: 'celsius' | 'fahrenheit';
+  showForecast: boolean;
+  showHourly: boolean;
+  autoRefresh: boolean;
+  refreshInterval: number; // in minutes
 } 

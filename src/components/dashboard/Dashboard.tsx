@@ -36,6 +36,7 @@ import { WidgetWrapper } from '../widgets/WidgetWrapper';
 import { TaskWidget } from '../widgets/TaskWidget';
 import { MoodWidget } from '../widgets/MoodWidget';
 import { FinanceWidget } from '../widgets/FinanceWidget';
+import WeatherWidget from '../widgets/WeatherWidget';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 import { getAuthHeaders, widgetUtils } from '@/lib/utils';
@@ -46,6 +47,7 @@ import { startOfDay, endOfDay, isToday } from 'date-fns';
 import { motion, AnimatePresence } from 'framer-motion';
 import { OnboardingModal } from './OnboardingModal';
 import { WidgetPickerModal } from './WidgetPickerModal';
+import { getDateStringForInput, getUserTimezone } from '@/utils/timezone';
 
 interface UserWidget {
   id: string;
@@ -75,6 +77,7 @@ interface WidgetType {
   icon: string;
   category: string;
   default_config: Record<string, any>;
+  isSubscribed?: boolean;
 }
 
 interface Notification {
@@ -104,6 +107,7 @@ const widgetComponents = {
   'finance_tracker': FinanceWidget,
   'task_manager': TaskWidget,
   'mood_tracker': MoodWidget,
+  'weather': WeatherWidget,
   // Add more widget components here as they're created
 };
 
@@ -236,13 +240,13 @@ export function Dashboard() {
   const fetchTodaysData = async () => {
     try {
       const headers = await getAuthHeaders();
+      const today = getDateStringForInput(); // Use timezone-aware date
       
       // Fetch today's tasks
       const tasksResponse = await fetch('/api/tasks', { headers });
       if (tasksResponse.ok) {
         const tasksData = await tasksResponse.json();
         const tasks = tasksData.tasks || tasksData || [];
-        const today = new Date().toISOString().split('T')[0];
         const todaysTasks = Array.isArray(tasks) ? tasks.filter((task: any) => 
           task.due_date === today && !task.completed
         ) : [];
@@ -254,7 +258,6 @@ export function Dashboard() {
       if (moodResponse.ok) {
         const moodData = await moodResponse.json();
         const entries = moodData.entries || moodData || [];
-        const today = new Date().toISOString().split('T')[0];
         const todaysMood = Array.isArray(entries) ? entries.find((entry: any) => entry.date === today) : null;
         setTodaysMood(todaysMood || null);
       }
@@ -264,7 +267,6 @@ export function Dashboard() {
       if (financeResponse.ok) {
         const financeData = await financeResponse.json();
         const entries = financeData.entries || financeData || [];
-        const today = new Date().toISOString().split('T')[0];
         const todaysFinance = Array.isArray(entries) ? entries.filter((entry: any) => 
           entry.date === today
         ) : [];
@@ -391,20 +393,6 @@ export function Dashboard() {
           
           dynamicTiles.push(tile);
         }
-      });
-      
-      // Add analytics tile at the end
-      dynamicTiles.push({
-        id: 'analytics',
-        name: 'analytics',
-        displayName: 'Analytics',
-        description: 'View insights and trends across all services',
-        icon: 'TrendingUp',
-        category: 'insights',
-        color: 'purple',
-        gradient: 'from-purple-500 to-violet-500',
-        isEnabled: true,
-        route: '/dashboard/analytics'
       });
       
       setServiceTiles(dynamicTiles);
@@ -602,19 +590,39 @@ export function Dashboard() {
       return (
         <div key={widget.id} className="bg-white rounded-lg shadow p-4">
           <p>Unknown widget type: {widget.widget_types.name}</p>
-          </div>
+        </div>
       );
     }
 
+    // Map UserWidget to Widget interface expected by widget components
+    const componentWidget = {
+      id: widget.id,
+      user_id: user?.id || '',
+      name: widget.title,
+      type: widget.widget_types.name as any,
+      settings: widget.config || {},
+      position: {
+        x: widget.position_x,
+        y: widget.position_y,
+        order: 0
+      },
+      size: {
+        width: widget.width,
+        height: widget.height
+      },
+      active: widget.is_visible,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    } as any; // Type assertion to bypass type conflicts
+
     return (
-      <WidgetWrapper
-        key={widget.id}
-        widget={widget}
-        onDelete={() => handleDeleteWidget(widget.id)}
-        onUpdate={(updates) => handleUpdateWidget(widget.id, updates)}
-      >
-        <WidgetComponent widget={widget} />
-      </WidgetWrapper>
+      <div key={widget.id} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        <WidgetComponent 
+          widget={componentWidget}
+          onUpdate={(widgetId: string, updates: any) => handleUpdateWidget(widgetId, updates)}
+          onDelete={(widgetId: string) => handleDeleteWidget(widgetId)}
+        />
+      </div>
     );
   };
 
@@ -775,16 +783,6 @@ export function Dashboard() {
       setShowWidgetPicker(true);
       setSelectedCategory('all');
       setSearchQuery('');
-      return;
-    }
-    
-    if (tile.id === 'analytics') {
-      // Analytics tile - could redirect to analytics page or show insights
-      addNotification({
-        type: 'info',
-        message: 'Analytics feature coming soon!',
-        title: 'Coming Soon'
-      });
       return;
     }
     
@@ -963,28 +961,28 @@ export function Dashboard() {
   const getTilePreviewData = (tile: ServiceTile) => {
     switch (tile.id) {
       case 'task_manager':
+        const pendingTasks = todaysTasks.filter(task => !task.completed);
         return {
-          count: todaysTasks.length,
-          label: 'tasks today',
-          status: todaysTasks.length > 0 ? 'active' : 'empty'
+          count: pendingTasks.length,
+          label: pendingTasks.length === 1 ? 'task due' : 'tasks due',
+          status: pendingTasks.length > 0 ? 'active' : 'empty'
         };
       case 'mood_tracker':
         return {
-          count: todaysMood ? 1 : 0,
-          label: 'mood logged',
+          count: todaysMood ? todaysMood.mood_score : 0,
+          label: todaysMood ? '/10 today' : 'not logged',
           status: todaysMood ? 'logged' : 'empty'
         };
       case 'finance_tracker':
+        const todayIncome = todaysFinance.filter(entry => entry.type === 'income')
+          .reduce((sum, entry) => sum + (entry.amount || 0), 0);
+        const todayExpenses = todaysFinance.filter(entry => entry.type === 'expense')
+          .reduce((sum, entry) => sum + (entry.amount || 0), 0);
+        const netToday = todayIncome - todayExpenses;
         return {
-          count: todaysFinance.length,
-          label: 'transactions',
+          count: netToday,
+          label: netToday >= 0 ? 'net gain' : 'net spent',
           status: todaysFinance.length > 0 ? 'active' : 'empty'
-        };
-      case 'analytics':
-        return {
-          count: null,
-          label: 'insights',
-          status: 'active'
         };
       default:
         return {
@@ -1061,7 +1059,6 @@ export function Dashboard() {
       // Filter out already subscribed widgets and return available ones
       const availableFromFallback = fallbackWidgetTypes.filter((widgetType: any) => 
         widgetType.name !== 'add_service' && 
-        widgetType.name !== 'analytics' && 
         !subscribedWidgetNames.has(widgetType.name)
       ).map((widgetType: any) => ({
         id: widgetType.name,
@@ -1083,7 +1080,6 @@ export function Dashboard() {
     // Filter out already subscribed widgets and return available ones
     const availableFromAPI = allWidgetTypes.filter((widgetType: any) => 
       widgetType.name !== 'add_service' && 
-      widgetType.name !== 'analytics' && 
       !subscribedWidgetNames.has(widgetType.name)
     ).map((widgetType: any) => ({
       id: widgetType.name,
@@ -1211,11 +1207,11 @@ export function Dashboard() {
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
       <TopBar isLoggedIn={true} />
       
-        {/* Notifications */}
+      {/* Notifications */}
       <AnimatePresence>
-          {notifications.map(notification => (
+        {notifications.map(notification => (
           <motion.div
-              key={notification.id}
+            key={notification.id}
             initial={{ opacity: 0, y: -50, scale: 0.9 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -50, scale: 0.9 }}
@@ -1253,9 +1249,9 @@ export function Dashboard() {
         ))}
       </AnimatePresence>
 
-      <main className="pt-20 px-4 pb-8">
+      <main className="pt-32 px-4 pb-8">
         {/* Header Section */}
-        <div className="max-w-7xl mx-auto mb-8">
+        <div className="max-w-7xl mx-auto mb-8 min-w-[320px]">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -1282,7 +1278,7 @@ export function Dashboard() {
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.6, delay: index * 0.1 }}
-                  className={`relative group cursor-pointer h-64 ${
+                  className={`relative group cursor-pointer h-64 min-w-[280px] ${
                     tile.isEnabled ? 'opacity-100' : 'opacity-60'
                   }`}
                   onMouseEnter={() => setHoveredTile(tile.id)}
@@ -1307,23 +1303,23 @@ export function Dashboard() {
                           <div className="flex items-center space-x-2">
                             <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
                             <span className="text-sm text-gray-600">Updating...</span>
+                          </div>
                         </div>
-                            </div>
                       )}
                       
                       <div className="flex items-start justify-between mb-4">
                         <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${tile.gradient} flex items-center justify-center shadow-lg`}>
                           <IconComponent className="w-6 h-6 text-white" />
-                          </div>
+                        </div>
                         <div className="flex items-center space-x-2">
                           {tile.isEnabled ? (
                             <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-                        ) : (
+                          ) : (
                             <div className="w-2 h-2 bg-gray-300 rounded-full" />
-                        )}
+                          )}
                           <ExternalLink className="w-4 h-4 text-gray-400 group-hover:text-gray-600 transition-colors" />
+                        </div>
                       </div>
-                    </div>
                       
                       <h3 className="text-xl font-bold text-gray-900 mb-2">
                         {tile.displayName}
@@ -1346,9 +1342,9 @@ export function Dashboard() {
                             <span className="text-sm text-gray-500">
                               {previewData.label}
                             </span>
-          </div>
+                          </div>
                           <ArrowRight className="w-4 h-4 text-gray-400 group-hover:text-gray-600 transition-colors" />
-        </div>
+                        </div>
                       )}
                       
                       {/* Add Service Tile - Simple call to action */}
@@ -1359,8 +1355,8 @@ export function Dashboard() {
                               {getAvailableServices().filter(s => !s.isEnabled).length} services available
                             </span>
                             <ArrowRight className="w-4 h-4 text-gray-400 group-hover:text-gray-600 transition-colors" />
-                </div>
-              </div>
+                          </div>
+                        </div>
                       )}
                       
                       {/* Status Indicator - Only show for non-add-service tiles */}
@@ -1372,8 +1368,8 @@ export function Dashboard() {
                           }`} />
                           <span className="text-xs text-gray-500 capitalize">
                             {previewData.status}
-                                    </span>
-                                  </div>
+                          </span>
+                        </div>
                       )}
                       
                       {/* Hover Overlay */}
@@ -1381,19 +1377,20 @@ export function Dashboard() {
                         className="absolute inset-0 bg-gradient-to-br from-black/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"
                         initial={false}
                       />
-                                    </div>
+                    </div>
                   </motion.div>
                 </motion.div>
-                            );
-                          })}
-                        </div>
-                      </div>
+              );
+            })}
+          </div>
+        </div>
       </main>
 
       {/* Modals */}
       <AnimatePresence>
         {showOnboarding && (
           <OnboardingModal
+            isOpen={showOnboarding}
             onComplete={handleOnboardingComplete}
             onClose={() => setShowOnboarding(false)}
           />
@@ -1412,6 +1409,6 @@ export function Dashboard() {
           />
         )}
       </AnimatePresence>
-      </div>
+    </div>
   );
 } 

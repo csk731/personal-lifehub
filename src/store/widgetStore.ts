@@ -171,6 +171,26 @@ export const useWidgetStore = create<WidgetStore>()(
               version: '1.0.0',
               isActive: true,
             },
+            {
+              id: 'weather',
+              name: 'Weather',
+              type: 'weather',
+              description: 'Check current weather and forecast',
+              icon: 'Cloud',
+              defaultSize: { width: 4, height: 6 },
+              defaultSettings: {
+                location: 'New York',
+                unit: 'celsius',
+                showForecast: true,
+                showHourly: false,
+                autoRefresh: true,
+                refreshInterval: 10,
+              },
+              component: () => null,
+              category: 'utilities',
+              version: '1.0.0',
+              isActive: true,
+            },
           ];
 
           set({ availableWidgets });

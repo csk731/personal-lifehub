@@ -239,13 +239,13 @@ export function WidgetPickerModal({
                   placeholder="Search services to subscribe..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-gray-700 placeholder-gray-400 bg-white"
                 />
               </div>
               <select
                 value={selectedCategory}
                 onChange={(e) => setSelectedCategory(e.target.value)}
-                className="px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                className="px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-gray-700 bg-white"
               >
                 <option value="all">All Categories</option>
                 {Object.keys(availableWidgets).map(category => (
@@ -266,7 +266,7 @@ export function WidgetPickerModal({
                 <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
                   <Search className="w-8 h-8 text-gray-400" />
                 </div>
-                <p className="text-gray-500">No services found matching your criteria</p>
+                <p className="text-gray-600">No services found matching your criteria</p>
               </motion.div>
             ) : (
               <div className="space-y-6 max-h-[60vh] overflow-y-auto">
@@ -284,7 +284,7 @@ export function WidgetPickerModal({
                     >
                       <h3 className="text-lg font-semibold text-gray-800 mb-4 capitalize flex items-center">
                         {category}
-                        <span className="ml-2 text-sm text-gray-500">({filteredWidgets.length})</span>
+                        <span className="ml-2 text-sm text-gray-600">({filteredWidgets.length})</span>
                       </h3>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         {filteredWidgets.map((widgetType, index) => {

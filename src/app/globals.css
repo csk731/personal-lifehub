@@ -23,6 +23,176 @@ body {
     min-height: 100vh;
     color: #1f2937;
     line-height: 1.6;
+    min-width: 320px;
+    /* Minimum width for the entire body */
+}
+
+/* Container minimum widths */
+.container {
+    min-width: 320px;
+}
+
+/* Main content area minimum width */
+main {
+    min-width: 320px;
+}
+
+/* Form elements minimum widths */
+input,
+select,
+textarea,
+button {
+    min-width: 0;
+    /* Allow elements to shrink but prevent overflow */
+}
+
+/* Button minimum widths */
+button {
+    min-width: fit-content;
+}
+
+/* Input and select minimum widths for better usability */
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="search"],
+input[type="date"],
+input[type="number"],
+select {
+    min-width: 120px;
+}
+
+/* Small buttons minimum width */
+.btn-sm,
+button.btn-sm {
+    min-width: 60px;
+}
+
+/* Medium buttons minimum width */
+.btn-md,
+button.btn-md {
+    min-width: 80px;
+}
+
+/* Large buttons minimum width */
+.btn-lg,
+button.btn-lg {
+    min-width: 100px;
+}
+
+/* Grid items minimum width */
+.grid-item {
+    min-width: 280px;
+}
+
+/* Card minimum width */
+.card {
+    min-width: 280px;
+}
+
+/* Modal minimum width */
+.modal {
+    min-width: 320px;
+}
+
+/* Dropdown minimum width */
+.dropdown {
+    min-width: 200px;
+}
+
+/* Navigation minimum width */
+nav {
+    min-width: 320px;
+}
+
+/* Header minimum width */
+header {
+    min-width: 320px;
+}
+
+/* Footer minimum width */
+footer {
+    min-width: 320px;
+}
+
+/* Responsive minimum widths */
+@media (max-width: 640px) {
+    body {
+        min-width: 280px;
+    }
+
+    .container {
+        min-width: 280px;
+    }
+
+    main {
+        min-width: 280px;
+    }
+
+    .card {
+        min-width: 260px;
+    }
+
+    .grid-item {
+        min-width: 260px;
+    }
+
+    input[type="text"],
+    input[type="email"],
+    input[type="password"],
+    input[type="search"],
+    input[type="date"],
+    input[type="number"],
+    select {
+        min-width: 100px;
+    }
+}
+
+@media (max-width: 480px) {
+    body {
+        min-width: 260px;
+    }
+
+    .container {
+        min-width: 260px;
+    }
+
+    main {
+        min-width: 260px;
+    }
+
+    .card {
+        min-width: 240px;
+    }
+
+    .grid-item {
+        min-width: 240px;
+    }
+
+    input[type="text"],
+    input[type="email"],
+    input[type="password"],
+    input[type="search"],
+    input[type="date"],
+    input[type="number"],
+    select {
+        min-width: 80px;
+    }
+
+    .btn-sm,
+    button.btn-sm {
+        min-width: 50px;
+    }
+
+    .btn-md,
+    button.btn-md {
+        min-width: 70px;
+    }
+
+    .btn-lg,
+    button.btn-lg {
+        min-width: 90px;
+    }
 }
 
 /* Modern Scrollbar */
@@ -419,21 +589,6 @@ body {
     animation: shimmer 1.5s infinite;
 }
 
-/* Modern Responsive Design */
-@media (max-width: 640px) {
-    .card-modern {
-        @apply p-4;
-    }
-
-    .btn-modern {
-        @apply px-4 py-2 text-sm;
-    }
-
-    .input-modern {
-        @apply px-3 py-2;
-    }
-}
-
 /* Modern Dark Mode Support */
 @media (prefers-color-scheme: dark) {
     body {
@@ -548,4 +703,44 @@ input:-webkit-autofill:active {
     100% {
         left: 100%;
     }
+}
+
+/* Shake animation for failed operations */
+@keyframes shake {
+
+    0%,
+    100% {
+        transform: translateX(0);
+    }
+
+    10%,
+    30%,
+    50%,
+    70%,
+    90% {
+        transform: translateX(-2px);
+    }
+
+    20%,
+    40%,
+    60%,
+    80% {
+        transform: translateX(2px);
+    }
+}
+
+.shake-animation {
+    animation: shake 0.5s ease-in-out;
+}
+
+/* Delete animation states */
+.deleting-entry {
+    pointer-events: none;
+    opacity: 0.7;
+}
+
+.deleting-entry .delete-button {
+    background-color: #fee2e2;
+    color: #ef4444;
+    cursor: not-allowed;
 }

@@ -720,7 +720,7 @@ export default function MoodPage() {
               <div className="text-center">
                 <div className="text-2xl mb-1">{tooltipData.entry.mood_emoji}</div>
                 <div className="font-medium text-gray-900">{tooltipData.entry.mood_label}</div>
-                <div className="text-sm text-gray-500">{tooltipData.day}</div>
+                <div className="text-sm text-gray-600">{tooltipData.day}</div>
                 <div className="text-sm font-medium text-purple-600">{tooltipData.entry.mood_score}/10</div>
                 {tooltipData.entry.notes && (
                   <div className="text-xs text-gray-600 mt-1 max-w-32 truncate">
@@ -855,7 +855,7 @@ export default function MoodPage() {
               <Heart className="w-4 h-4 text-purple-600" />
             </div>
             <div>
-              <p className="text-xs text-gray-500 uppercase tracking-wide">This Week</p>
+              <p className="text-xs text-gray-600 uppercase tracking-wide">This Week</p>
               <div className="flex items-center space-x-1">
                 <p className="text-xl font-bold text-purple-600">{stats.recentAvgMood}/10</p>
                 {stats.trend !== 0 && (
@@ -885,7 +885,7 @@ export default function MoodPage() {
               <TrendingUp className="w-4 h-4 text-green-600" />
             </div>
             <div>
-              <p className="text-xs text-gray-500 uppercase tracking-wide">All Time Avg</p>
+              <p className="text-xs text-gray-600 uppercase tracking-wide">All Time Avg</p>
               <p className="text-xl font-bold text-green-600">{stats.avgMood}/10</p>
             </div>
           </div>
@@ -897,7 +897,7 @@ export default function MoodPage() {
               <BarChart3 className="w-4 h-4 text-blue-600" />
             </div>
             <div>
-              <p className="text-xs text-gray-500 uppercase tracking-wide">Total Entries</p>
+              <p className="text-xs text-gray-600 uppercase tracking-wide">Total Entries</p>
               <p className="text-xl font-bold text-blue-600">{stats.total}</p>
             </div>
           </div>
@@ -909,7 +909,7 @@ export default function MoodPage() {
               <LineChart className="w-4 h-4 text-orange-600" />
             </div>
             <div>
-              <p className="text-xs text-gray-500 uppercase tracking-wide">This Week</p>
+              <p className="text-xs text-gray-600 uppercase tracking-wide">This Week</p>
               <p className="text-xl font-bold text-orange-600">
                 {displayEntries.length} days
               </p>
@@ -923,10 +923,10 @@ export default function MoodPage() {
               <Zap className="w-4 h-4 text-yellow-600" />
             </div>
             <div>
-              <p className="text-xs text-gray-500 uppercase tracking-wide">Streak</p>
+              <p className="text-xs text-gray-600 uppercase tracking-wide">Streak</p>
               <div className="flex items-center space-x-2">
                 <span className="text-xl font-bold text-yellow-600">{streaks.currentStreak}🔥</span>
-                <span className="text-xs text-gray-500">Best: {streaks.bestStreak}</span>
+                <span className="text-xs text-gray-600">Best: {streaks.bestStreak}</span>
               </div>
             </div>
           </div>
@@ -938,7 +938,7 @@ export default function MoodPage() {
               <Calendar className="w-4 h-4 text-gray-600" />
             </div>
             <div>
-              <p className="text-xs text-gray-500 uppercase tracking-wide">Weekly Progress</p>
+              <p className="text-xs text-gray-600 uppercase tracking-wide">Weekly Progress</p>
               <div className="flex items-center space-x-2">
                 <span className="text-xl font-bold text-gray-600">{daysLoggedThisWeek}/7</span>
                 <div className="flex-1 bg-gray-200 rounded-full h-2">
@@ -1029,7 +1029,7 @@ export default function MoodPage() {
             <div className="flex items-center space-x-4">
               <div>
                 <h1 className="text-2xl font-bold text-gray-900">Mood Tracker</h1>
-                <p className="text-sm text-gray-600">Track your daily well-being</p>
+                <p className="text-sm text-gray-700">Track your daily well-being</p>
               </div>
             </div>
           </div>
@@ -1042,7 +1042,7 @@ export default function MoodPage() {
                   <Sparkles className="w-5 h-5 text-purple-600" />
                   <span>Mood Insights</span>
                 </h3>
-                <span className="text-sm text-gray-500 bg-white px-2 py-1 rounded-full">
+                <span className="text-sm text-gray-600 bg-white px-2 py-1 rounded-full">
                   {moodEntries.length} entries
                 </span>
               </div>
@@ -1056,7 +1056,7 @@ export default function MoodPage() {
                         <span className="text-xl">{bestDay.mood_emoji}</span>
                       </div>
                       <div>
-                        <p className="text-xs text-gray-500 uppercase tracking-wide">Best Day</p>
+                        <p className="text-xs text-gray-600 uppercase tracking-wide">Best Day</p>
                         <p className="font-medium text-gray-900">{bestDay.mood_label}</p>
                         <p className="text-sm text-gray-600">
                           {new Date(bestDay.date).toLocaleDateString('en-US', { 
@@ -1081,7 +1081,7 @@ export default function MoodPage() {
                         <span className="text-xl">{worstDay.mood_emoji}</span>
                       </div>
                       <div>
-                        <p className="text-xs text-gray-500 uppercase tracking-wide">Lowest Day</p>
+                        <p className="text-xs text-gray-600 uppercase tracking-wide">Lowest Day</p>
                         <p className="font-medium text-gray-900">{worstDay.mood_label}</p>
                         <p className="text-sm text-gray-600">
                           {new Date(worstDay.date).toLocaleDateString('en-US', { 
@@ -1100,7 +1100,7 @@ export default function MoodPage() {
 
                 {/* Mood Distribution */}
                 <div className="bg-white rounded-lg p-4 shadow-sm border border-purple-100">
-                  <p className="text-xs text-gray-500 uppercase tracking-wide mb-3">Mood Distribution</p>
+                  <p className="text-xs text-gray-600 uppercase tracking-wide mb-3">Mood Distribution</p>
                   <div className="flex items-end space-x-1 h-12 mb-2">
                     {moodDist.map((count, i) => (
                       <div 
@@ -1214,7 +1214,7 @@ export default function MoodPage() {
                         <span className="text-2xl">{entry.mood_emoji}</span>
                         <div className="flex-1">
                           <h4 className="font-medium text-gray-900">{entry.mood_label}</h4>
-                          <p className="text-sm text-gray-500">
+                          <p className="text-sm text-gray-600">
                             {new Date(entry.date).toLocaleDateString('en-US', { 
                               weekday: 'long', 
                               month: 'short', 
@@ -1300,7 +1300,7 @@ export default function MoodPage() {
                     placeholder="Add notes about your mood..."
                     value={newEntry.notes}
                     onChange={(e) => setNewEntry(prev => ({ ...prev, notes: e.target.value }))}
-                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none"
+                    className="w-full px-3 py-2 text-gray-700 placeholder-gray-400 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none"
                     rows={3}
                   />
                 </div>

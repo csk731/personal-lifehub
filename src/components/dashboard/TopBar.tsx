@@ -68,34 +68,35 @@ export function TopBar({ isLoggedIn }: { isLoggedIn?: boolean }) {
         initial={{ y: -100, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ duration: 0.6, ease: "easeOut" }}
-        className="fixed top-0 left-0 w-full z-40 border-b border-white/20 px-4 py-3 flex items-center justify-between bg-white/80 backdrop-blur-xl shadow-lg"
+        className="fixed top-0 left-0 w-full z-40 border-b border-white/20 px-4 py-3 flex items-center justify-between bg-white/80 backdrop-blur-xl shadow-lg min-w-[320px]"
       >
         <motion.div 
-          className="flex items-center space-x-3 select-none"
+          className="flex items-center space-x-3 select-none min-w-0"
           whileHover={{ scale: 1.02 }}
           transition={{ type: "spring", stiffness: 400, damping: 10 }}
         >
           <motion.div
             whileHover={{ rotate: 360 }}
             transition={{ duration: 0.6, ease: "easeInOut" }}
+            className="flex-shrink-0"
           >
             <Image src="/file.svg" alt="LifeHub Logo" width={32} height={32} />
           </motion.div>
-          <span className="text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+          <span className="text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent truncate">
             LifeHub
           </span>
         </motion.div>
         
-        <div className="flex items-center space-x-2 md:space-x-4">
+        <div className="flex items-center space-x-2 md:space-x-4 min-w-0">
           {isLoggedIn ? (
             <>
               {/* Home Button */}
               <motion.div 
-                className="relative group"
+                className="relative group flex-shrink-0"
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
               >
-                <Link href="/dashboard" title="Home" className="p-2 rounded-xl hover:bg-white/50 transition-all duration-300 block backdrop-blur-sm" aria-label="Home">
+                <Link href="/dashboard" title="Home" className="p-2 rounded-xl hover:bg-white/50 transition-all duration-300 block backdrop-blur-sm min-w-[40px] min-h-[40px] flex items-center justify-center" aria-label="Home">
                   <HomeIcon className="w-6 h-6 text-gray-700 group-hover:text-blue-600 transition-colors duration-300" />
                   <span className="sr-only">Home</span>
                 </Link>
@@ -110,13 +111,13 @@ export function TopBar({ isLoggedIn }: { isLoggedIn?: boolean }) {
               
               {/* Help Button */}
               <motion.div 
-                className="relative group"
+                className="relative group flex-shrink-0"
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
               >
                 <button
                   onClick={() => setShowHelpModal(true)}
-                  className="p-2 rounded-xl hover:bg-white/50 transition-all duration-300 group"
+                  className="p-2 rounded-xl hover:bg-white/50 transition-all duration-300 group min-w-[40px] min-h-[40px] flex items-center justify-center"
                   title="Help"
                   aria-label="Show help"
                 >
@@ -133,13 +134,13 @@ export function TopBar({ isLoggedIn }: { isLoggedIn?: boolean }) {
               
               {/* Profile Dropdown */}
               <motion.div 
-                className="relative" 
+                className="relative flex-shrink-0" 
                 ref={profileDropdownRef}
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
               >
                 <button
-                  className="flex items-center space-x-2 p-2 rounded-xl hover:bg-white/50 transition-all duration-300 group focus:outline-none"
+                  className="flex items-center space-x-2 p-2 rounded-xl hover:bg-white/50 transition-all duration-300 group focus:outline-none min-w-[80px]"
                   onClick={() => setShowProfileDropdown(v => !v)}
                   aria-haspopup="true"
                   aria-expanded={showProfileDropdown}
@@ -147,13 +148,13 @@ export function TopBar({ isLoggedIn }: { isLoggedIn?: boolean }) {
                 >
                   <motion.div
                     whileHover={{ scale: 1.1 }}
-                    className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center shadow-lg"
+                    className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center shadow-lg flex-shrink-0"
                   >
                     <User className="w-4 h-4 text-white" />
                   </motion.div>
                   <motion.svg 
                     animate={{ rotate: showProfileDropdown ? 180 : 0 }}
-                    className="w-4 h-4 text-gray-400 group-hover:text-blue-600 transition-colors duration-300" 
+                    className="w-4 h-4 text-gray-400 group-hover:text-blue-600 transition-colors duration-300 flex-shrink-0" 
                     fill="none" 
                     viewBox="0 0 24 24"
                   >
@@ -168,7 +169,7 @@ export function TopBar({ isLoggedIn }: { isLoggedIn?: boolean }) {
                       animate={{ opacity: 1, y: 0, scale: 1 }}
                       exit={{ opacity: 0, y: -10, scale: 0.95 }}
                       transition={{ duration: 0.2, ease: "easeOut" }}
-                      className="absolute right-0 mt-3 w-64 bg-white/90 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/20 py-3 z-50"
+                      className="absolute right-0 mt-3 w-64 bg-white/90 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/20 py-3 z-50 min-w-[200px]"
                     >
                       <motion.div 
                         className="px-4 py-3 border-b border-gray-100/50 flex items-center space-x-3"
@@ -176,7 +177,7 @@ export function TopBar({ isLoggedIn }: { isLoggedIn?: boolean }) {
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ delay: 0.1 }}
                       >
-                        <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center shadow-lg">
+                        <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center shadow-lg flex-shrink-0">
                           {profile?.avatar_url ? (
                             <img src={profile.avatar_url} alt="Avatar" className="w-10 h-10 rounded-full object-cover" />
                           ) : (
@@ -194,20 +195,20 @@ export function TopBar({ isLoggedIn }: { isLoggedIn?: boolean }) {
                       <motion.button
                         whileHover={{ backgroundColor: "rgba(59, 130, 246, 0.1)" }}
                         whileTap={{ scale: 0.98 }}
-                        className="w-full flex items-center space-x-3 px-4 py-3 text-sm text-gray-700 hover:bg-blue-50 transition-colors duration-200"
+                        className="w-full flex items-center space-x-3 px-4 py-3 text-sm text-gray-700 hover:bg-blue-50 transition-colors duration-200 min-w-[200px]"
                         onClick={() => { setShowProfileDropdown(false); router.push('/dashboard/profile'); }}
                       >
-                        <User className="w-4 h-4 text-blue-600" />
+                        <User className="w-4 h-4 text-blue-600 flex-shrink-0" />
                         <span>Profile</span>
                       </motion.button>
                       
                       <motion.button
                         whileHover={{ backgroundColor: "rgba(239, 68, 68, 0.1)" }}
                         whileTap={{ scale: 0.98 }}
-                        className="w-full flex items-center space-x-3 px-4 py-3 text-sm text-gray-700 hover:bg-red-50 transition-colors duration-200"
+                        className="w-full flex items-center space-x-3 px-4 py-3 text-sm text-gray-700 hover:bg-red-50 transition-colors duration-200 min-w-[200px]"
                         onClick={handleSignOut}
                       >
-                        <LogOut className="w-4 h-4 text-red-600" />
+                        <LogOut className="w-4 h-4 text-red-600 flex-shrink-0" />
                         <span>Sign Out</span>
                       </motion.button>
                     </motion.div>

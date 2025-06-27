@@ -2,13 +2,7 @@
 
 import { ReactNode, useState, useEffect, useRef } from 'react';
 import { ExternalLink, ChevronDown } from 'lucide-react';
-
-interface Widget {
-  id: string;
-  width: number;
-  height: number;
-  name: string;
-}
+import { Widget } from '@/types';
 
 interface WidgetWrapperProps {
   widget: Widget;

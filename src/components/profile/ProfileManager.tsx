@@ -506,7 +506,7 @@ export function ProfileManager() {
                   type="text"
                   value={formData.full_name}
                   onChange={(e) => handleInputChange('full_name', e.target.value)}
-                  className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-gray-900 placeholder-gray-500 text-sm ${
+                  className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-gray-900 placeholder-gray-400 text-sm ${
                     fieldErrors.full_name ? 'border-red-300 bg-red-50' : 'border-gray-300 bg-white'
                   }`}
                   placeholder="Enter your full name"
@@ -536,7 +536,7 @@ export function ProfileManager() {
                   type="email"
                   value={profile.email}
                   onChange={(e) => handleInputChange('email', e.target.value)}
-                  className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-gray-900 placeholder-gray-500 text-sm ${
+                  className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-gray-900 placeholder-gray-400 text-sm ${
                     fieldErrors.email ? 'border-red-300 bg-red-50' : 'border-gray-300 bg-white'
                   }`}
                   placeholder="Enter your email"
@@ -566,7 +566,7 @@ export function ProfileManager() {
                   type="tel"
                   value={formData.phone}
                   onChange={(e) => handleInputChange('phone', e.target.value)}
-                  className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-gray-900 placeholder-gray-500 text-sm ${
+                  className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-gray-900 placeholder-gray-400 text-sm ${
                     fieldErrors.phone ? 'border-red-300 bg-red-50' : 'border-gray-300 bg-white'
                   }`}
                   placeholder="Enter your phone number"
@@ -625,7 +625,7 @@ export function ProfileManager() {
                   value={formData.bio}
                   onChange={(e) => handleInputChange('bio', e.target.value)}
                   rows={3}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 resize-none text-gray-900 placeholder-gray-500 bg-white text-sm"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 resize-none text-gray-900 placeholder-gray-400 bg-white text-sm"
                   placeholder="Tell us about yourself..."
                 />
             </motion.div>
@@ -644,7 +644,7 @@ export function ProfileManager() {
                   type="text"
                   value={formData.location}
                   onChange={(e) => handleInputChange('location', e.target.value)}
-                    className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-gray-900 placeholder-gray-500 bg-white text-sm"
+                    className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-gray-900 placeholder-gray-400 bg-white text-sm"
                     placeholder="Enter your location"
                 />
               </div>
@@ -663,7 +663,7 @@ export function ProfileManager() {
                   type="url"
                   value={formData.website}
                   onChange={(e) => handleInputChange('website', e.target.value)}
-                    className={`w-full pl-8 pr-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-gray-900 placeholder-gray-500 text-sm ${
+                    className={`w-full pl-8 pr-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-gray-900 placeholder-gray-400 text-sm ${
                       fieldErrors.website ? 'border-red-300 bg-red-50' : 'border-gray-300 bg-white'
                     }`}
                     placeholder="https://your-website.com"
@@ -709,7 +709,7 @@ export function ProfileManager() {
                     value={newSkill}
                     onChange={(e) => setNewSkill(e.target.value)}
                     onKeyPress={(e) => e.key === 'Enter' && addArrayItem('skills', newSkill)}
-                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-gray-900 placeholder-gray-500 bg-white text-sm"
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-gray-900 placeholder-gray-400 bg-white text-sm"
                     placeholder="Add a skill..."
                   />
                   <motion.button
@@ -762,7 +762,7 @@ export function ProfileManager() {
                     value={newInterest}
                     onChange={(e) => setNewInterest(e.target.value)}
                     onKeyPress={(e) => e.key === 'Enter' && addArrayItem('interests', newInterest)}
-                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-gray-900 placeholder-gray-500 bg-white text-sm"
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-gray-900 placeholder-gray-400 bg-white text-sm"
                     placeholder="Add an interest..."
                   />
                   <motion.button
@@ -829,7 +829,7 @@ export function ProfileManager() {
                   type="text"
                   value={formData.occupation}
                   onChange={(e) => handleInputChange('occupation', e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-gray-900 placeholder-gray-500 bg-white text-sm"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-gray-900 placeholder-gray-400 bg-white text-sm"
                     placeholder="Enter your job title"
                 />
                 </motion.div>
@@ -845,7 +845,7 @@ export function ProfileManager() {
                   type="text"
                   value={formData.company}
                   onChange={(e) => handleInputChange('company', e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-gray-900 placeholder-gray-500 bg-white text-sm"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-gray-900 placeholder-gray-400 bg-white text-sm"
                     placeholder="Enter your company name"
                 />
                 </motion.div>
@@ -861,7 +861,7 @@ export function ProfileManager() {
                   type="text"
                   value={formData.education}
                   onChange={(e) => handleInputChange('education', e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-gray-900 placeholder-gray-500 bg-white text-sm"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-gray-900 placeholder-gray-400 bg-white text-sm"
                     placeholder="Enter your education background"
                 />
                 </motion.div>
@@ -887,7 +887,7 @@ export function ProfileManager() {
                     type="url"
                     value={formData.social_links.twitter}
                     onChange={(e) => handleNestedChange('social_links', 'twitter', e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-gray-900 placeholder-gray-500 bg-white text-sm"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-gray-900 placeholder-gray-400 bg-white text-sm"
                     placeholder="https://twitter.com/username"
                   />
                 </motion.div>
@@ -903,7 +903,7 @@ export function ProfileManager() {
                     type="url"
                     value={formData.social_links.linkedin}
                     onChange={(e) => handleNestedChange('social_links', 'linkedin', e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-gray-900 placeholder-gray-500 bg-white text-sm"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-gray-900 placeholder-gray-400 bg-white text-sm"
                     placeholder="https://linkedin.com/in/username"
                   />
                 </motion.div>
@@ -919,7 +919,7 @@ export function ProfileManager() {
                     type="url"
                     value={formData.social_links.github}
                     onChange={(e) => handleNestedChange('social_links', 'github', e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-gray-900 placeholder-gray-500 bg-white text-sm"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-gray-900 placeholder-gray-400 bg-white text-sm"
                     placeholder="https://github.com/username"
                   />
                 </motion.div>
@@ -935,7 +935,7 @@ export function ProfileManager() {
                     type="url"
                     value={formData.social_links.instagram}
                     onChange={(e) => handleNestedChange('social_links', 'instagram', e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-gray-900 placeholder-gray-500 bg-white text-sm"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-gray-900 placeholder-gray-400 bg-white text-sm"
                     placeholder="https://instagram.com/username"
                   />
                 </motion.div>

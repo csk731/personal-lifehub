@@ -123,7 +123,7 @@ export function AddFinanceModal({ open, onClose, onSuccess }: { open: boolean, o
                   placeholder="0.00"
                   value={newEntry.amount}
                   onChange={(e) => setNewEntry(prev => ({ ...prev, amount: e.target.value }))}
-                  className="w-full pl-8 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  className="w-full pl-8 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent text-gray-700 placeholder-gray-400 bg-white"
                   autoFocus
                 />
               </div>
@@ -137,7 +137,7 @@ export function AddFinanceModal({ open, onClose, onSuccess }: { open: boolean, o
                   type: e.target.value as 'income' | 'expense',
                   category: 'other' // Reset category when type changes
                 }))}
-                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent text-gray-700 bg-white"
               >
                 <option value="expense">Expense</option>
                 <option value="income">Income</option>
@@ -150,7 +150,7 @@ export function AddFinanceModal({ open, onClose, onSuccess }: { open: boolean, o
               <select
                 value={newEntry.category}
                 onChange={(e) => setNewEntry(prev => ({ ...prev, category: e.target.value }))}
-                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent text-gray-700 bg-white"
               >
                 {newEntry.type === 'income' ? (
                   <>
@@ -196,7 +196,7 @@ export function AddFinanceModal({ open, onClose, onSuccess }: { open: boolean, o
                 type="date"
                 value={newEntry.date}
                 onChange={(e) => setNewEntry(prev => ({ ...prev, date: e.target.value }))}
-                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent text-gray-700 bg-white"
               />
             </div>
           </div>
@@ -225,7 +225,7 @@ export function AddFinanceModal({ open, onClose, onSuccess }: { open: boolean, o
               onBlur={() => {
                 setTimeout(() => setShowSuggestions(false), 200);
               }}
-              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent text-gray-700 placeholder-gray-400 bg-white"
             />
           </div>
           <div className="flex items-center space-x-3 pt-2">

@@ -213,7 +213,7 @@ export function TaskWidget({ widgetId, title, config, widget }: TaskWidgetProps)
         <div className="flex items-center justify-center h-full">
           <div className="text-center">
             <div className="w-8 h-8 border-2 border-blue-200 border-t-blue-600 rounded-full animate-spin mx-auto mb-2"></div>
-            <p className="text-sm text-gray-500">Loading tasks...</p>
+            <p className="text-sm text-gray-600">Loading tasks...</p>
           </div>
         </div>
       </WidgetWrapper>
@@ -267,14 +267,14 @@ export function TaskWidget({ widgetId, title, config, widget }: TaskWidgetProps)
                 placeholder="Task title..."
                 value={newTask.title}
                 onChange={(e) => setNewTask(prev => ({ ...prev, title: e.target.value }))}
-                className="w-full text-sm border border-gray-300 rounded px-2 py-1 focus:ring-1 focus:ring-green-500"
+                className="w-full text-sm border border-gray-300 rounded px-2 py-1 focus:ring-1 focus:ring-green-500 text-gray-700 placeholder-gray-400 bg-white"
                 onKeyPress={(e) => e.key === 'Enter' && addTask()}
               />
               <div className="flex items-center space-x-2">
                 <select
                   value={newTask.priority}
                   onChange={(e) => setNewTask(prev => ({ ...prev, priority: e.target.value as any }))}
-                  className="text-xs border border-gray-300 rounded px-2 py-1 focus:ring-1 focus:ring-green-500"
+                  className="text-xs border border-gray-300 rounded px-2 py-1 focus:ring-1 focus:ring-green-500 text-gray-700 bg-white"
                 >
                   <option value="low">Low</option>
                   <option value="medium">Medium</option>
@@ -285,7 +285,7 @@ export function TaskWidget({ widgetId, title, config, widget }: TaskWidgetProps)
                   type="date"
                   value={newTask.due_date}
                   onChange={(e) => setNewTask(prev => ({ ...prev, due_date: e.target.value }))}
-                  className="text-xs border border-gray-300 rounded px-2 py-1 focus:ring-1 focus:ring-green-500"
+                  className="text-xs border border-gray-300 rounded px-2 py-1 focus:ring-1 focus:ring-green-500 text-gray-700 bg-white"
                 />
                 <button
                   onClick={addTask}
@@ -304,8 +304,8 @@ export function TaskWidget({ widgetId, title, config, widget }: TaskWidgetProps)
             <div className="flex items-center justify-center h-full p-4">
               <div className="text-center">
                 <CheckSquare className="w-8 h-8 text-gray-300 mx-auto mb-2" />
-                <p className="text-sm text-gray-500">No pending tasks</p>
-                <p className="text-xs text-gray-400 mt-1">Great job! All caught up</p>
+                <p className="text-sm text-gray-600">No pending tasks</p>
+                <p className="text-xs text-gray-500 mt-1">Great job! All caught up</p>
               </div>
             </div>
           ) : (
