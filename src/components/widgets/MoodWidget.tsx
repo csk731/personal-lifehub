@@ -170,7 +170,7 @@ export function MoodWidget({ widgetId, title, config, widget }: MoodWidgetProps)
         <div className="flex items-center justify-center h-full">
           <div className="text-center">
             <div className="w-8 h-8 border-2 border-green-200 border-t-green-600 rounded-full animate-spin mx-auto mb-2"></div>
-            <p className="text-sm text-gray-600">Loading mood data...</p>
+            <p className="text-sm text-gray-900">Loading mood data...</p>
           </div>
         </div>
       </WidgetWrapper>
@@ -238,7 +238,7 @@ export function MoodWidget({ widgetId, title, config, widget }: MoodWidgetProps)
                     }`}
                   >
                     <div className="text-lg mb-1">{moodEmojis[score as keyof typeof moodEmojis]}</div>
-                    <div className="text-xs text-gray-600">{moodLabels[score as keyof typeof moodLabels]}</div>
+                    <div className="text-xs text-gray-700">{moodLabels[score as keyof typeof moodLabels]}</div>
                   </button>
                 ))}
               </div>
@@ -249,7 +249,7 @@ export function MoodWidget({ widgetId, title, config, widget }: MoodWidgetProps)
                 placeholder="How are you feeling? (optional)"
                 value={newEntry.notes}
                 onChange={(e) => setNewEntry(prev => ({ ...prev, notes: e.target.value }))}
-                className="w-full text-sm border border-gray-300 rounded px-2 py-1 focus:ring-1 focus:ring-green-500 text-gray-700 placeholder-gray-400 bg-white"
+                className="w-full text-sm border border-gray-300 rounded px-2 py-1 focus:ring-1 focus:ring-green-500 text-gray-700 placeholder-gray-700 bg-white"
                 onKeyPress={(e) => e.key === 'Enter' && addMoodEntry()}
               />
               
@@ -280,7 +280,7 @@ export function MoodWidget({ widgetId, title, config, widget }: MoodWidgetProps)
               <div className="text-2xl">{todayEntry.mood_emoji}</div>
               <div className="flex-1">
                 <div className="text-sm font-medium text-gray-900">{todayEntry.mood_label}</div>
-                <div className="text-xs text-gray-600">Today's mood</div>
+                <div className="text-xs text-gray-700">Today's mood</div>
                 {todayEntry.notes && (
                   <div className="text-xs text-gray-500 mt-1">"{todayEntry.notes}"</div>
                 )}
@@ -295,7 +295,7 @@ export function MoodWidget({ widgetId, title, config, widget }: MoodWidgetProps)
             <div className="flex items-center justify-center h-full p-4">
               <div className="text-center">
                 <Smile className="w-8 h-8 text-gray-300 mx-auto mb-2" />
-                <p className="text-sm text-gray-600">No mood entries</p>
+                <p className="text-sm text-gray-900">No mood entries</p>
                 <p className="text-xs text-gray-500 mt-1">Start tracking your mood</p>
               </div>
             </div>
@@ -313,7 +313,7 @@ export function MoodWidget({ widgetId, title, config, widget }: MoodWidgetProps)
                         <div>
                           <h4 className="text-sm font-medium text-gray-900">{entry.mood_label}</h4>
                           {entry.notes && (
-                            <p className="text-xs text-gray-600 mt-1 line-clamp-1">"{entry.notes}"</p>
+                            <p className="text-xs text-gray-700 mt-1 line-clamp-1">"{entry.notes}"</p>
                           )}
                         </div>
                         <div className="text-xs text-gray-500 flex-shrink-0 ml-2">

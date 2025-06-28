@@ -4,6 +4,72 @@ import { Widget, WidgetComponent, WidgetStore } from '@/types';
 import { supabase } from '@/lib/supabase';
 import { v4 as uuidv4 } from 'uuid';
 
+export const widgetTypes = [
+  {
+    id: 'weather',
+    name: 'Weather',
+    description: 'Display current weather information',
+    icon: '🌤️',
+    component: 'WeatherWidget',
+    defaultConfig: {
+      location: '',
+      unit: 'celsius',
+      showDetails: true,
+      autoRefresh: true,
+      refreshInterval: 30
+    }
+  },
+  {
+    id: 'tasks',
+    name: 'Tasks',
+    description: 'Manage your daily tasks',
+    icon: '✅',
+    component: 'TaskWidget',
+    defaultConfig: {
+      maxTasks: 5,
+      showCompleted: false,
+      sortBy: 'priority'
+    }
+  },
+  {
+    id: 'finance',
+    name: 'Finance',
+    description: 'Track your expenses and income',
+    icon: '💰',
+    component: 'FinanceWidget',
+    defaultConfig: {
+      currency: 'USD',
+      showChart: true,
+      period: 'month'
+    }
+  },
+  {
+    id: 'mood',
+    name: 'Mood Tracker',
+    description: 'Track your daily mood',
+    icon: '😊',
+    component: 'MoodWidget',
+    defaultConfig: {
+      showHistory: true,
+      reminderTime: '20:00'
+    }
+  },
+  {
+    id: 'notes',
+    name: 'Quick Notes',
+    description: 'Capture your thoughts and ideas',
+    icon: '📝',
+    component: 'NotesWidget',
+    defaultConfig: {
+      maxNotes: 5,
+      showSearch: true,
+      showCategories: true,
+      showStats: true,
+      compactMode: false
+    }
+  }
+];
+
 export const useWidgetStore = create<WidgetStore>()(
   devtools(
     persist(

@@ -30,7 +30,11 @@ import {
   FileText,
   CheckSquare,
   Cloud,
-  Book
+  Book,
+  ChevronRight,
+  Play,
+  Pause,
+  MoreHorizontal
 } from 'lucide-react';
 import { WidgetWrapper } from '../widgets/WidgetWrapper';
 import { TaskWidget } from '../widgets/TaskWidget';
@@ -39,6 +43,7 @@ import { FinanceWidget } from '../widgets/FinanceWidget';
 import WeatherWidget from '../widgets/WeatherWidget';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { getAuthHeaders, widgetUtils } from '@/lib/utils';
 import Image from 'next/image';
 import { TopBar } from './TopBar';
@@ -48,6 +53,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { OnboardingModal } from './OnboardingModal';
 import { WidgetPickerModal } from './WidgetPickerModal';
 import { getDateStringForInput, getUserTimezone } from '@/utils/timezone';
+import NotesWidget from '@/components/widgets/NotesWidget';
+import { SkeletonTopBar, SkeletonHero, SkeletonServicesGrid, SkeletonTile, Skeleton } from '../ui/Skeleton';
 
 interface UserWidget {
   id: string;
@@ -103,12 +110,12 @@ interface ServiceTile {
   route: string;
 }
 
-const widgetComponents = {
-  'finance_tracker': FinanceWidget,
-  'task_manager': TaskWidget,
-  'mood_tracker': MoodWidget,
+const widgetComponents: { [key: string]: React.ComponentType<any> } = {
   'weather': WeatherWidget,
-  // Add more widget components here as they're created
+  'tasks': TaskWidget,
+  'finance': FinanceWidget,
+  'mood': MoodWidget,
+  'notes': NotesWidget,
 };
 
 const moodEmojis: { [key: number]: string } = {
@@ -181,6 +188,7 @@ export function Dashboard() {
   const [todaysTasks, setTodaysTasks] = useState<any[]>([]);
   const [todaysMood, setTodaysMood] = useState<any | null>(null);
   const [todaysFinance, setTodaysFinance] = useState<any[]>([]);
+  const [weatherData, setWeatherData] = useState<any>(null);
   const dataLoadedRef = useRef(false);
 
   // Service tiles configuration - will be populated dynamically
@@ -197,86 +205,123 @@ export function Dashboard() {
 
   const getSmartRecommendations = () => {
     const recommendations = [];
-    const enabledStats = getEnabledWidgetStats();
     
-    // Task-based recommendations (only if task widget is enabled)
-    if (isTaskWidgetEnabled()) {
-      if (enabledStats.totalTasks === 0) {
-        recommendations.push('Start your productivity journey by adding your first task');
-      } else if (enabledStats.completedTasks === 0) {
-        recommendations.push('You have tasks to complete - start with the most important one');
-      } else if (enabledStats.completedTasks / enabledStats.totalTasks < 0.5) {
-        recommendations.push('Focus on completing more tasks today to boost your productivity');
-      } else if (enabledStats.completedTasks / enabledStats.totalTasks >= 0.8) {
-        recommendations.push('Excellent progress! You\'re on track for a productive day');
-      }
+    if (todaysTasks.length === 0) {
+      recommendations.push({
+        type: 'task',
+        message: 'No tasks scheduled for today',
+        action: 'Add a task',
+        icon: CheckSquare,
+        color: 'blue'
+      });
     }
     
-    // Mood-based recommendations (only if mood widget is enabled)
-    if (isMoodWidgetEnabled()) {
-      if (enabledStats.totalMoodEntries === 0) {
-        recommendations.push('Track your mood to understand your emotional patterns');
-      } else if (enabledStats.averageMood < 5) {
-        recommendations.push('Your mood seems low - consider taking a break or doing something you enjoy');
-      } else if (enabledStats.averageMood >= 8) {
-        recommendations.push('Great mood! Keep up the positive energy');
+    if (!todaysMood) {
+      recommendations.push({
+        type: 'mood',
+        message: 'How are you feeling today?',
+        action: 'Log your mood',
+        icon: Smile,
+        color: 'purple'
+      });
       }
+    
+    if (todaysFinance.length === 0) {
+      recommendations.push({
+        type: 'finance',
+        message: 'Track your daily expenses',
+        action: 'Add expense',
+        icon: DollarSign,
+        color: 'green'
+      });
     }
     
-    // Finance-based recommendations (only if finance widget is enabled)
-    if (isFinanceWidgetEnabled()) {
-      if (enabledStats.totalFinanceEntries === 0) {
-        recommendations.push('Start tracking your finances to understand your spending patterns');
-      } else if (enabledStats.totalBalance < 0) {
-        recommendations.push('Consider reviewing your expenses to improve your financial health');
-      } else if (enabledStats.totalBalance > 1000) {
-        recommendations.push('Great job managing your finances! Consider setting savings goals');
-      }
+    return recommendations;
+  };
+
+  const initializeDashboard = async () => {
+    try {
+      setLoading(true);
+      
+      const loadDashboardData = async () => {
+        await Promise.all([
+          fetchUserWidgets(),
+          fetchAvailableWidgets(),
+          calculateStats(),
+          fetchTodaysData(),
+          fetchProfile()
+        ]);
+      };
+      
+      await loadDashboardData();
+    } catch (error) {
+      console.error('Error loading dashboard data:', error);
+      setError('Failed to load dashboard data');
+    } finally {
+      setLoading(false);
     }
-    
-    return recommendations.slice(0, 3); // Return top 3 recommendations
   };
 
   const fetchTodaysData = async () => {
     try {
       const headers = await getAuthHeaders();
-      const today = getDateStringForInput(); // Use timezone-aware date
+      const today = new Date().toISOString().split('T')[0];
       
       // Fetch today's tasks
-      const tasksResponse = await fetch('/api/tasks', { headers });
+      try {
+        const tasksResponse = await fetch(`/api/tasks?date=${today}`, { headers });
       if (tasksResponse.ok) {
         const tasksData = await tasksResponse.json();
-        const tasks = tasksData.tasks || tasksData || [];
-        const todaysTasks = Array.isArray(tasks) ? tasks.filter((task: any) => 
-          task.due_date === today && !task.completed
-        ) : [];
-        setTodaysTasks(todaysTasks);
+          setTodaysTasks(tasksData.tasks || []);
+        } else {
+          console.warn('Failed to fetch tasks:', tasksResponse.status);
+          setTodaysTasks([]);
+        }
+      } catch (error) {
+        console.warn('Error fetching tasks:', error);
+        setTodaysTasks([]);
       }
       
       // Fetch today's mood
-      const moodResponse = await fetch('/api/mood', { headers });
+      try {
+        const moodResponse = await fetch(`/api/mood?date=${today}`, { headers });
       if (moodResponse.ok) {
         const moodData = await moodResponse.json();
-        const entries = moodData.entries || moodData || [];
-        const todaysMood = Array.isArray(entries) ? entries.find((entry: any) => entry.date === today) : null;
-        setTodaysMood(todaysMood || null);
+          setTodaysMood(moodData.mood || null);
+        } else {
+          console.warn('Failed to fetch mood:', moodResponse.status);
+          setTodaysMood(null);
+        }
+      } catch (error) {
+        console.warn('Error fetching mood:', error);
+        setTodaysMood(null);
       }
       
       // Fetch today's finance entries
-      const financeResponse = await fetch('/api/finance', { headers });
+      try {
+        const financeResponse = await fetch(`/api/finance?date=${today}`, { headers });
       if (financeResponse.ok) {
         const financeData = await financeResponse.json();
-        const entries = financeData.entries || financeData || [];
-        const todaysFinance = Array.isArray(entries) ? entries.filter((entry: any) => 
-          entry.date === today
-        ) : [];
-        setTodaysFinance(todaysFinance);
+          setTodaysFinance(financeData.entries || []);
+        } else {
+          console.warn('Failed to fetch finance:', financeResponse.status);
+          setTodaysFinance([]);
       }
     } catch (error) {
-      console.error('Error fetching today\'s data:', error);
-      if (error instanceof Error && error.message.includes('auth')) {
-        router.push('/auth');
+        console.warn('Error fetching finance:', error);
+        setTodaysFinance([]);
       }
+      
+      // Fetch weather data (optional)
+      await fetchWeatherData();
+      
+    } catch (error) {
+      console.error('Error in fetchTodaysData:', error);
+      // Set default values to prevent undefined errors
+      setTodaysTasks([]);
+      setTodaysMood(null);
+      setTodaysFinance([]);
+      setWeatherData(null);
     }
   };
 
@@ -297,22 +342,24 @@ export function Dashboard() {
   const checkUser = async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
       setUser(user);
-        // Don't call fetchProfile here - it will be called in the second useEffect
-      } else {
-        console.log('No user found, redirecting to auth');
-        setUser(null);
+      
+      if (user && !dataLoadedRef.current) {
+        dataLoadedRef.current = true;
+        await initializeDashboard();
       }
     } catch (error) {
       console.error('Error checking user:', error);
-      setUser(null);
     }
   };
 
   const handleSignOut = async () => {
+    try {
     await supabase.auth.signOut();
     router.push('/auth');
+    } catch (error) {
+      console.error('Error signing out:', error);
+    }
   };
 
   const fetchUserWidgets = async () => {
@@ -320,90 +367,82 @@ export function Dashboard() {
       const headers = await getAuthHeaders();
       const response = await fetch('/api/widgets', { headers });
       
-      if (!response.ok) {
-        throw new Error('Failed to fetch widgets');
-      }
-      
+      if (response.ok) {
       const data = await response.json();
-      
-      // Handle different possible response structures
-      const widgets = data.widgets || data || [];
-      
-      if (!Array.isArray(widgets)) {
-        console.error('Invalid widgets response:', data);
-        setWidgets([]);
-        return;
+        setWidgets(data.widgets || []);
+        
+        // Populate service tiles based on widgets
+        const tiles: ServiceTile[] = [];
+        
+        data.widgets.forEach((widget: UserWidget) => {
+          const getServiceId = (widgetName: string) => {
+            switch (widgetName) {
+              case 'weather': return 'weather';
+              case 'task_manager': return 'tasks';
+              case 'finance_tracker': return 'finance';
+              case 'mood_tracker': return 'mood';
+              case 'notes': return 'notes';
+              case 'habit_tracker': return 'habits';
+              case 'calendar': return 'calendar';
+              default: return widgetName;
+            }
+          };
+          
+          const getServiceRoute = (widgetName: string) => {
+            switch (widgetName) {
+              case 'weather': return '/dashboard/weather';
+              case 'task_manager': return '/dashboard/tasks';
+              case 'finance_tracker': return '/dashboard/finance';
+              case 'mood_tracker': return '/dashboard/mood';
+              case 'notes': return '/dashboard/notes';
+              case 'habit_tracker': return '/dashboard/habits';
+              case 'calendar': return '/dashboard/calendar';
+              default: return '/dashboard';
       }
-      
-      setWidgets(widgets);
-      
-      // Extract unique widget types from the widgets
-      const widgetTypes = widgets.map((widget: any) => widget.widget_types).filter(Boolean);
-      
-      // Create dynamic service tiles based on actual widget types
-      const dynamicTiles: ServiceTile[] = [
-        // Always include the add-service tile first
-        {
+          };
+          
+          const serviceId = getServiceId(widget.widget_types.name);
+          const serviceRoute = getServiceRoute(widget.widget_types.name);
+          const existingTile = tiles.find(t => t.id === serviceId);
+          
+          if (!existingTile) {
+            tiles.push({
+              id: serviceId,
+              name: widget.widget_types.name,
+              displayName: widget.widget_types.display_name,
+              description: widget.widget_types.description,
+              icon: widget.widget_types.icon,
+              category: widget.widget_types.category,
+              color: getColorForCategory(widget.widget_types.category),
+              gradient: getGradientForCategory(widget.widget_types.category),
+              isEnabled: true,
+              route: serviceRoute,
+              loading: false
+            });
+          }
+        });
+        
+        // Add "Add Service" tile
+        tiles.push({
           id: 'add-service',
           name: 'add_service',
           displayName: 'Add Service',
-          description: 'Subscribe to new services and features',
+          description: 'Discover and add new services to your dashboard',
           icon: 'Plus',
           category: 'system',
           color: 'gray',
-          gradient: 'from-gray-500 to-slate-500',
+          gradient: 'from-gray-500 to-gray-600',
           isEnabled: true,
-          route: '/dashboard/add-service'
-        }
-      ];
-      
-      // Add tiles for each unique widget type
-      const seenTypes = new Set();
-      widgetTypes.forEach((widgetType: any) => {
-        if (!seenTypes.has(widgetType.name)) {
-          seenTypes.add(widgetType.name);
-          
-          // Map widget type name to standardized service ID
-          const getServiceId = (widgetName: string) => {
-            const serviceMap: { [key: string]: string } = {
-              'task_manager': 'task_manager',
-              'tasks': 'task_manager',
-              'mood_tracker': 'mood_tracker',
-              'mood': 'mood_tracker',
-              'finance_tracker': 'finance_tracker',
-              'finance': 'finance_tracker',
-              'profile': 'profile'
-            };
-            return serviceMap[widgetName] || widgetName;
-          };
-          
-          // Map widget type to service tile
-          const tile: ServiceTile = {
-            id: getServiceId(widgetType.name),
-            name: widgetType.name,
-            displayName: widgetType.display_name,
-            description: widgetType.description,
-            icon: widgetType.icon,
-            category: widgetType.category,
-            color: getColorForCategory(widgetType.category),
-            gradient: getGradientForCategory(widgetType.category),
-            isEnabled: true, // All fetched widgets are enabled
-            route: `/dashboard/${getServiceId(widgetType.name)}`
-          };
-          
-          dynamicTiles.push(tile);
-        }
+          route: '#',
+          loading: false
       });
       
-      setServiceTiles(dynamicTiles);
-    } catch (err) {
-      console.error('Error fetching user widgets:', err);
-      setWidgets([]);
-      if (err instanceof Error && err.message.includes('auth')) {
-        router.push('/auth');
+        setServiceTiles(tiles);
       } else {
-      setError(err instanceof Error ? err.message : 'Failed to load widgets');
+        console.error('Failed to fetch widgets:', response.status);
       }
+    } catch (error) {
+      console.error('Error fetching widgets:', error);
     }
   };
 
@@ -412,31 +451,27 @@ export function Dashboard() {
       const headers = await getAuthHeaders();
       const response = await fetch('/api/widget-types', { headers });
       
-      if (!response.ok) {
-        throw new Error('Failed to fetch available widgets');
-      }
-      
-      const data = await response.json();
-      
-      // Handle the actual API response structure
-      const widgetTypesData = data.widgetTypes || data.widget_types || data || {};
-      
-      if (typeof widgetTypesData !== 'object' || widgetTypesData === null) {
-        console.error('Invalid widget types response:', data);
-        setAvailableWidgets({});
-        return;
-      }
-      
-      // The API returns widgetTypes grouped by category, so we can use it directly
-      setAvailableWidgets(widgetTypesData);
-    } catch (err) {
-      console.error('Error fetching available widgets:', err);
-      setAvailableWidgets({});
-      if (err instanceof Error && err.message.includes('auth')) {
-        router.push('/auth');
+      if (response.ok) {
+        const data = await response.json();
+        console.log('Widget types API response:', data);
+        
+        // The API returns { widgetTypes: groupedData }
+        const widgetTypes = data.widgetTypes || data.widget_types || {};
+        
+        if (typeof widgetTypes === 'object' && widgetTypes !== null) {
+          // It's already grouped by category
+          setAvailableWidgets(widgetTypes);
+        } else {
+          console.warn('Invalid widget types data structure:', data);
+          setAvailableWidgets({});
+        }
       } else {
-        setError(err instanceof Error ? err.message : 'Failed to load available widgets');
+        console.error('Failed to fetch available widgets:', response.status);
+        setAvailableWidgets({});
       }
+    } catch (error) {
+      console.error('Error fetching available widgets:', error);
+      setAvailableWidgets({});
     }
   };
 
@@ -444,44 +479,54 @@ export function Dashboard() {
     try {
       const headers = await getAuthHeaders();
       
-      // Calculate task stats
+      // Fetch tasks stats
       const tasksResponse = await fetch('/api/tasks', { headers });
       if (tasksResponse.ok) {
         const tasksData = await tasksResponse.json();
-        const tasks = tasksData.tasks || tasksData || [];
-        const totalTasks = Array.isArray(tasks) ? tasks.length : 0;
-        const completedTasks = Array.isArray(tasks) ? tasks.filter((task: any) => task.completed).length : 0;
-        setStats(prev => ({ ...prev, totalTasks, completedTasks }));
+        const totalTasks = tasksData.tasks?.length || 0;
+        const completedTasks = tasksData.tasks?.filter((task: any) => task.completed)?.length || 0;
+        
+        setStats(prev => ({
+          ...prev,
+          totalTasks,
+          completedTasks
+        }));
       }
 
-      // Calculate mood stats
+      // Fetch mood stats
       const moodResponse = await fetch('/api/mood', { headers });
       if (moodResponse.ok) {
         const moodData = await moodResponse.json();
-        const entries = moodData.entries || moodData || [];
-        const totalMoodEntries = Array.isArray(entries) ? entries.length : 0;
-        const averageMood = Array.isArray(entries) && entries.length > 0 
-          ? entries.reduce((sum: number, entry: any) => sum + (entry.mood_score || 0), 0) / totalMoodEntries
+        const totalMoodEntries = moodData.moods?.length || 0;
+        const averageMood = moodData.moods?.length > 0 
+          ? moodData.moods.reduce((sum: number, mood: any) => sum + mood.rating, 0) / moodData.moods.length 
           : 0;
-        setStats(prev => ({ ...prev, totalMoodEntries, averageMood }));
+        
+        setStats(prev => ({
+          ...prev,
+          totalMoodEntries,
+          averageMood
+        }));
       }
 
-      // Calculate finance stats
+      // Fetch finance stats
       const financeResponse = await fetch('/api/finance', { headers });
       if (financeResponse.ok) {
         const financeData = await financeResponse.json();
-        const entries = financeData.entries || financeData || [];
-        const totalFinanceEntries = Array.isArray(entries) ? entries.length : 0;
-        const totalBalance = Array.isArray(entries) ? entries.reduce((sum: number, entry: any) => {
-          return sum + (entry.type === 'income' ? (entry.amount || 0) : -(entry.amount || 0));
-        }, 0) : 0;
-        setStats(prev => ({ ...prev, totalFinanceEntries, totalBalance }));
+        const totalFinanceEntries = financeData.entries?.length || 0;
+        const totalBalance = financeData.entries?.reduce((sum: number, entry: any) => {
+          return sum + (entry.type === 'income' ? entry.amount : -entry.amount);
+        }, 0) || 0;
+        
+        setStats(prev => ({
+          ...prev,
+          totalFinanceEntries,
+          totalBalance
+        }));
       }
+      
     } catch (error) {
       console.error('Error calculating stats:', error);
-      if (error instanceof Error && error.message.includes('auth')) {
-        router.push('/auth');
-      }
     }
   };
 
@@ -489,8 +534,8 @@ export function Dashboard() {
     try {
       setAddingWidget(widgetTypeId);
       setModalLoading(true);
-      const headers = await getAuthHeaders();
       
+      const headers = await getAuthHeaders();
       const response = await fetch('/api/widgets', {
         method: 'POST',
         headers,
@@ -503,46 +548,32 @@ export function Dashboard() {
           height: 2,
           config: {},
           is_visible: true
-        })
+        }),
       });
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || 'Failed to add widget');
+      if (response.ok) {
+        const newWidget = await response.json();
+        setWidgets(prev => [...prev, newWidget]);
+        setShowWidgetPicker(false);
+        
+        // Refresh service tiles and available widgets
+        await Promise.all([
+          fetchUserWidgets(),
+          fetchAvailableWidgets()
+        ]);
+      } else {
+        throw new Error('Failed to add widget');
       }
-
-      const data = await response.json();
-      const newWidget = data.widget || data;
-      
-      if (!newWidget) {
-        throw new Error('Invalid response from server');
-      }
-
-      // Close modal first, then refresh data
-      setShowWidgetPicker(false);
-      setModalLoading(false);
-      
-      // Brief delay to show the modal closing animation
-      setTimeout(async () => {
-        // Refresh all dashboard data to ensure consistency
-        await refreshDashboardData();
-      }, 300);
-      
-      addNotification({
-        type: 'success',
-        message: `${displayName} service activated successfully!`,
-        title: 'Service Added'
-      });
-    } catch (err) {
-      console.error('Error adding widget:', err);
-      setModalLoading(false);
+    } catch (error) {
+      console.error('Error adding widget:', error);
       addNotification({
         type: 'error',
-        message: err instanceof Error ? err.message : 'Failed to add service',
-        title: 'Error'
+        title: 'Error',
+        message: 'Failed to add widget. Please try again.',
       });
     } finally {
       setAddingWidget(null);
+      setModalLoading(false);
     }
   };
 
@@ -551,100 +582,69 @@ export function Dashboard() {
   };
 
   const isTaskWidgetEnabled = () => {
-    return serviceTiles.find(tile => tile.id === 'task_manager')?.isEnabled || false;
+    return widgets.some(widget => widget.widget_types.name === 'task_manager');
   };
 
   const isMoodWidgetEnabled = () => {
-    return serviceTiles.find(tile => tile.id === 'mood_tracker')?.isEnabled || false;
+    return widgets.some(widget => widget.widget_types.name === 'mood_tracker');
   };
 
   const isFinanceWidgetEnabled = () => {
-    return serviceTiles.find(tile => tile.id === 'finance_tracker')?.isEnabled || false;
+    return widgets.some(widget => widget.widget_types.name === 'finance_tracker');
   };
 
   const getEnabledWidgetStats = () => {
-    const enabledStats = { ...stats };
-    
-    if (!isTaskWidgetEnabled()) {
-      enabledStats.totalTasks = 0;
-      enabledStats.completedTasks = 0;
+    const enabledWidgets = widgets.filter(widget => widget.is_visible);
+    const totalWidgets = enabledWidgets.length;
+    const activeWidgets = enabledWidgets.filter(widget => {
+      // Check if widget has recent activity
+      const widgetName = widget.widget_types.name;
+      switch (widgetName) {
+        case 'task_manager':
+          return todaysTasks.length > 0;
+        case 'mood_tracker':
+          return todaysMood !== null;
+        case 'finance_tracker':
+          return todaysFinance.length > 0;
+        case 'weather':
+          return weatherData !== null;
+        default:
+          return true;
     }
+    }).length;
 
-    if (!isMoodWidgetEnabled()) {
-      enabledStats.totalMoodEntries = 0;
-      enabledStats.averageMood = 0;
-    }
-
-    if (!isFinanceWidgetEnabled()) {
-      enabledStats.totalFinanceEntries = 0;
-      enabledStats.totalBalance = 0;
-    }
-
-    return enabledStats;
+    return { totalWidgets, activeWidgets };
   };
 
   const renderWidget = (widget: UserWidget) => {
-    const WidgetComponent = widgetComponents[widget.widget_types.name as keyof typeof widgetComponents];
-    
+    const WidgetComponent = widgetComponents[widget.widget_types.name];
     if (!WidgetComponent) {
-      return (
-        <div key={widget.id} className="bg-white rounded-lg shadow p-4">
-          <p>Unknown widget type: {widget.widget_types.name}</p>
-        </div>
-      );
+      return null;
     }
 
-    // Map UserWidget to Widget interface expected by widget components
-    const componentWidget = {
-      id: widget.id,
-      user_id: user?.id || '',
-      name: widget.title,
-      type: widget.widget_types.name as any,
-      settings: widget.config || {},
-      position: {
-        x: widget.position_x,
-        y: widget.position_y,
-        order: 0
-      },
-      size: {
-        width: widget.width,
-        height: widget.height
-      },
-      active: widget.is_visible,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    } as any; // Type assertion to bypass type conflicts
-
     return (
-      <div key={widget.id} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        <WidgetComponent 
-          widget={componentWidget}
-          onUpdate={(widgetId: string, updates: any) => handleUpdateWidget(widgetId, updates)}
-          onDelete={(widgetId: string) => handleDeleteWidget(widgetId)}
+      <WidgetWrapper
+        key={widget.id}
+        widget={widget}
+        onDelete={handleDeleteWidget}
+        onUpdate={handleUpdateWidget}
+      >
+        <WidgetComponent
+          config={widget.config}
+          onConfigChange={(newConfig: any) => handleUpdateWidget(widget.id, { config: newConfig })}
         />
-      </div>
+      </WidgetWrapper>
     );
   };
 
   const filteredWidgetTypes = () => {
-    if (!availableWidgets || Object.keys(availableWidgets).length === 0) {
-      return [];
+    const allWidgets = Object.values(availableWidgets).flat();
+    if (selectedCategory === 'all') {
+      return allWidgets.filter(widget => !isWidgetTypeAdded(widget.id));
     }
-    
-    let filtered = Object.values(availableWidgets).flat();
-    
-    if (selectedCategory !== 'all') {
-      filtered = filtered.filter(widget => widget.category === selectedCategory);
-    }
-    
-    if (searchQuery) {
-      filtered = filtered.filter(widget => 
-            widget.display_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            widget.description.toLowerCase().includes(searchQuery.toLowerCase())
+    return allWidgets.filter(widget => 
+      widget.category === selectedCategory && !isWidgetTypeAdded(widget.id)
       );
-    }
-    
-    return filtered;
   };
 
   const fetchProfile = async () => {
@@ -653,93 +653,123 @@ export function Dashboard() {
       const response = await fetch('/api/profile', { headers });
       
       if (response.ok) {
-      const data = await response.json();
-        const profileData = data.profile || data || null;
-        setProfile(profileData);
+        const data = await response.json();
+        setProfile(data.profile);
         
-        // Show onboarding if no profile exists
-        if (!profileData) {
+        // Check if onboarding has been dismissed in this session
+        const onboardingDismissed = localStorage.getItem('onboarding_dismissed');
+        
+        // Show onboarding only for new users who haven't completed it and haven't dismissed it
+        const shouldShowOnboarding = data.profile && 
+          data.profile.onboarding_completed === false && 
+          !onboardingDismissed;
+        
+        if (shouldShowOnboarding) {
           setShowOnboarding(true);
         }
       } else {
         console.error('Failed to fetch profile:', response.status);
-      setProfile(null);
-    }
+      }
     } catch (error) {
       console.error('Error fetching profile:', error);
-      setProfile(null);
-      if (error instanceof Error && error.message.includes('auth')) {
-        router.push('/auth');
+    }
+  };
+
+  const markOnboardingComplete = async () => {
+    try {
+      const headers = await getAuthHeaders();
+      const response = await fetch('/api/profile', {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify({
+          onboarding_completed: true
+        }),
+      });
+
+      if (response.ok) {
+        // Update local profile state
+        setProfile((prev: any) => prev ? { ...prev, onboarding_completed: true } : null);
+      } else {
+        console.error('Failed to mark onboarding complete:', response.status);
       }
+    } catch (error) {
+      console.error('Error marking onboarding complete:', error);
     }
   };
 
   const refreshTodaysData = async () => {
-    await Promise.all([
-      fetchTodaysData(),
-      calculateStats()
-    ]);
+    await fetchTodaysData();
+    addNotification({
+      type: 'success',
+      title: 'Data Refreshed',
+      message: 'Your dashboard data has been updated',
+    });
   };
 
-  // Comprehensive refresh function for when services are added/removed
   const refreshDashboardData = async () => {
     try {
-      console.log('Refreshing dashboard data...');
-      // Set loading state for service tiles
-      setServiceTiles(prev => prev.map(tile => ({ ...tile, loading: true })));
-      
+      setLoading(true);
       await Promise.all([
-        fetchUserWidgets(), // Refresh widgets
-        fetchAvailableWidgets(), // Refresh available widget types
-        fetchTodaysData(), // Refresh today's data
-        calculateStats() // Refresh statistics
+        fetchUserWidgets(),
+        fetchAvailableWidgets(),
+        calculateStats(),
+        fetchTodaysData(),
+        fetchProfile()
       ]);
-      
-      // Clear loading state
-      setServiceTiles(prev => prev.map(tile => ({ ...tile, loading: false })));
-      console.log('Dashboard data refreshed successfully');
+      addNotification({
+        type: 'success',
+        title: 'Dashboard Refreshed',
+        message: 'All data has been updated successfully',
+      });
     } catch (error) {
       console.error('Error refreshing dashboard data:', error);
-      // Clear loading state on error
-      setServiceTiles(prev => prev.map(tile => ({ ...tile, loading: false })));
+      addNotification({
+        type: 'error',
+        title: 'Refresh Failed',
+        message: 'Failed to refresh dashboard data',
+      });
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleOnboardingComplete = () => {
+  const handleOnboardingComplete = async () => {
+    // Mark as dismissed in localStorage to prevent showing again
+    localStorage.setItem('onboarding_dismissed', 'true');
+    
+    // Try to update the profile, but don't fail if it doesn't work
+    try {
+      await markOnboardingComplete();
+    } catch (error) {
+      console.warn('Could not update profile, but onboarding will not show again');
+    }
+    
     setShowOnboarding(false);
     addNotification({
       type: 'success',
-      message: 'Welcome to LifeHub! Your profile has been created successfully.',
-      title: 'Profile Created'
+      title: 'Welcome!',
+      message: 'Your dashboard is ready. Start exploring your services!',
     });
   };
 
   const handleDeleteWidget = async (widgetId: string) => {
     try {
-    const headers = await getAuthHeaders();
+      const headers = await getAuthHeaders();
       const response = await fetch(`/api/widgets/${widgetId}`, {
         method: 'DELETE',
-        headers
+        headers,
       });
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || 'Failed to delete widget');
+      if (response.ok) {
+        setWidgets(prev => prev.filter(widget => widget.id !== widgetId));
+        
+        // Refresh service tiles
+        await fetchUserWidgets();
+      } else {
+        throw new Error('Failed to delete widget');
       }
-
-      setWidgets(prev => prev.filter(w => w.id !== widgetId));
-      addNotification({
-        type: 'success',
-        message: 'Widget removed successfully',
-        title: 'Widget Deleted'
-      });
-    } catch (err) {
-      console.error('Error deleting widget:', err);
-      addNotification({
-        type: 'error',
-        message: err instanceof Error ? err.message : 'Failed to delete widget',
-        title: 'Error'
-      });
+    } catch (error) {
+      console.error('Error deleting widget:', error);
     }
   };
 
@@ -749,240 +779,166 @@ export function Dashboard() {
       const response = await fetch(`/api/widgets/${widgetId}`, {
         method: 'PUT',
         headers,
-        body: JSON.stringify(updates)
+        body: JSON.stringify(updates),
       });
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || 'Failed to update widget');
+      if (response.ok) {
+        const updatedWidget = await response.json();
+        setWidgets(prev => prev.map(widget => 
+          widget.id === widgetId ? updatedWidget : widget
+        ));
+      } else {
+        throw new Error('Failed to update widget');
       }
-
-      const data = await response.json();
-      const updatedWidget = data.widget || data;
-      
-      if (!updatedWidget) {
-        throw new Error('Invalid response from server');
-      }
-      
-      setWidgets(prev => prev.map(w => w.id === widgetId ? updatedWidget : w));
-    } catch (err) {
-      console.error('Error updating widget:', err);
-      addNotification({
-        type: 'error',
-        message: err instanceof Error ? err.message : 'Failed to update widget',
-        title: 'Error'
-      });
+    } catch (error) {
+      console.error('Error updating widget:', error);
     }
   };
 
   const handleTileClick = (tile: ServiceTile) => {
-    console.log('Tile clicked:', tile);
-    
     if (tile.id === 'add-service') {
-      // Show widget picker to enable services
       setShowWidgetPicker(true);
-      setSelectedCategory('all');
-      setSearchQuery('');
       return;
     }
     
-    // Check if the service is enabled
-    if (!tile.isEnabled) {
-      // Show widget picker to enable the service
-      setShowWidgetPicker(true);
-      setSelectedCategory('all');
-      setSearchQuery('');
-      addNotification({
-        type: 'info',
-        message: `Please subscribe to ${tile.displayName} to access this service.`,
-        title: 'Service Not Active'
-      });
-      return;
-    }
-    
-    // Handle different service types
-    switch (tile.id) {
-      case 'task_manager':
-      case 'tasks':
-        router.push('/dashboard/tasks');
-        break;
-        
-      case 'mood_tracker':
-      case 'mood':
-        router.push('/dashboard/mood');
-        break;
-        
-      case 'finance_tracker':
-      case 'finance':
-        router.push('/dashboard/finance');
-        break;
-        
-      case 'profile':
-        router.push('/dashboard/profile');
-        break;
-        
-      default:
-        // For other services, try to navigate to their specific route
-        if (tile.route && tile.route !== '/dashboard/add-service') {
+    if (tile.isEnabled) {
           router.push(tile.route);
         } else {
-          // Fallback: show notification that service page is not available
           addNotification({
             type: 'info',
-            message: `${tile.displayName} service page is not available yet.`,
-            title: 'Coming Soon'
+        title: 'Service Disabled',
+        message: `${tile.displayName} is currently disabled`,
           });
-        }
-        break;
     }
   };
 
   const handleUnsubscribeService = async (tile: ServiceTile) => {
     try {
-      // Find the widget to delete
-      const widgetToDelete = widgets.find(widget => widget.widget_type_id === tile.name);
-      
-      if (!widgetToDelete) {
+      const widget = widgets.find(w => w.widget_types.name === tile.name);
+      if (widget) {
+        await handleDeleteWidget(widget.id);
         addNotification({
-          type: 'error',
-          message: 'Service not found',
-          title: 'Error'
-        });
-        return;
-      }
-
-      const headers = await getAuthHeaders();
-      const response = await fetch(`/api/widgets/${widgetToDelete.id}`, {
-        method: 'DELETE',
-        headers
+          type: 'success',
+          title: 'Service Removed',
+          message: `${tile.displayName} has been removed from your dashboard`,
       });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || 'Failed to unsubscribe from service');
       }
-
-      // Remove widget from state
-      setWidgets(prev => prev.filter(w => w.id !== widgetToDelete.id));
-      
-      // Update service tile to disabled
-      setServiceTiles(prev => prev.map(t => 
-        t.id === tile.id ? { ...t, isEnabled: false } : t
-      ));
-      
-      addNotification({
-        type: 'success',
-        message: `${tile.displayName} service unsubscribed successfully!`,
-        title: 'Service Unsubscribed'
-      });
-    } catch (err) {
-      console.error('Error unsubscribing from service:', err);
+    } catch (error) {
+      console.error('Error unsubscribing from service:', error);
       addNotification({
         type: 'error',
-        message: err instanceof Error ? err.message : 'Failed to unsubscribe from service',
-        title: 'Error'
+        title: 'Error',
+        message: 'Failed to remove service. Please try again.',
       });
     }
   };
 
   const handleUnsubscribeFromModal = async (widgetTypeId: string, displayName: string) => {
     try {
-      setModalLoading(true);
-      // Find the widget to delete
-      const widgetToDelete = widgets.find(widget => widget.widget_type_id === widgetTypeId);
-      
-      if (!widgetToDelete) {
-        addNotification({
-          type: 'error',
-          message: 'Service not found',
-          title: 'Error'
-        });
-        return;
+      const widget = widgets.find(w => w.widget_type_id === widgetTypeId);
+      if (widget) {
+        await handleDeleteWidget(widget.id);
+        
+        // Refresh service tiles and available widgets
+        await Promise.all([
+          fetchUserWidgets(),
+          fetchAvailableWidgets()
+        ]);
       }
-
-      const headers = await getAuthHeaders();
-      const response = await fetch(`/api/widgets/${widgetToDelete.id}`, {
-        method: 'DELETE',
-        headers
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || 'Failed to unsubscribe from service');
-      }
-
-      // Close modal first, then refresh data
-      setShowWidgetPicker(false);
-      setModalLoading(false);
-      
-      // Brief delay to show the modal closing animation
-      setTimeout(async () => {
-        // Refresh all dashboard data to ensure consistency
-        await refreshDashboardData();
-      }, 300);
-      
-      addNotification({
-        type: 'success',
-        message: `${displayName} service unsubscribed successfully!`,
-        title: 'Service Unsubscribed'
-      });
-    } catch (err) {
-      console.error('Error unsubscribing from service:', err);
-      setModalLoading(false);
-      addNotification({
-        type: 'error',
-        message: err instanceof Error ? err.message : 'Failed to unsubscribe from service',
-        title: 'Error'
-      });
+    } catch (error) {
+      console.error('Error removing widget from modal:', error);
     }
   };
 
   const getTileIcon = (iconName: string) => {
     const iconMap: { [key: string]: any } = {
-      Plus,
-      Target,
-      Heart,
-      DollarSign,
-      TrendingUp,
-      Calendar,
-      Clock,
-      HelpCircle,
-      Sparkles,
-      Zap,
-      Smile,
-      FileText,
-      CheckSquare,
-      Cloud,
-      Book
+      'Plus': Plus,
+      'CheckSquare': CheckSquare,
+      'Smile': Smile,
+      'DollarSign': DollarSign,
+      'Cloud': Cloud,
+      'FileText': FileText,
+      'Target': Target,
+      'TrendingUp': TrendingUp,
+      'Calendar': Calendar,
+      'Clock': Clock,
+      'Heart': Heart,
+      'Zap': Zap,
+      'Book': Book,
+      'Settings': Settings,
+      'User': User,
+      'Bell': Bell,
+      'Search': Search,
+      'Menu': Menu,
+      'X': X,
+      'ChevronDown': ChevronDown,
+      'Sparkles': Sparkles,
+      'Loader2': Loader2,
+      'ExternalLink': ExternalLink,
+      'ArrowRight': ArrowRight,
+      'AlertCircle': AlertCircle,
+      'CheckCircle': CheckCircle,
+      'HelpCircle': HelpCircle,
+      'LogOut': LogOut,
+      'Grid3X3': Grid3X3,
+      'ChevronRight': ChevronRight,
+      'Play': Play,
+      'Pause': Pause,
+      'MoreHorizontal': MoreHorizontal
     };
-    return iconMap[iconName] || Target;
+    return iconMap[iconName] || Plus;
+  };
+
+  const fetchWeatherData = async () => {
+    try {
+      const headers = await getAuthHeaders();
+      const response = await fetch('/api/weather', { headers });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setWeatherData(data);
+      } else {
+        console.warn('Weather data not available:', response.status);
+        setWeatherData(null);
+      }
+    } catch (error) {
+      console.warn('Error fetching weather data:', error);
+      setWeatherData(null);
+    }
   };
 
   const getTilePreviewData = (tile: ServiceTile) => {
     switch (tile.id) {
-      case 'task_manager':
-        const pendingTasks = todaysTasks.filter(task => !task.completed);
+      case 'tasks':
         return {
-          count: pendingTasks.length,
-          label: pendingTasks.length === 1 ? 'task due' : 'tasks due',
-          status: pendingTasks.length > 0 ? 'active' : 'empty'
+          count: todaysTasks.length,
+          label: 'tasks today',
+          status: todaysTasks.length > 0 ? 'active' : 'empty'
         };
-      case 'mood_tracker':
+      case 'mood':
         return {
-          count: todaysMood ? todaysMood.mood_score : 0,
-          label: todaysMood ? '/10 today' : 'not logged',
+          count: todaysMood ? todaysMood.rating : null,
+          label: todaysMood ? moodLabels[todaysMood.rating] : 'not logged',
           status: todaysMood ? 'logged' : 'empty'
         };
-      case 'finance_tracker':
-        const todayIncome = todaysFinance.filter(entry => entry.type === 'income')
-          .reduce((sum, entry) => sum + (entry.amount || 0), 0);
-        const todayExpenses = todaysFinance.filter(entry => entry.type === 'expense')
-          .reduce((sum, entry) => sum + (entry.amount || 0), 0);
-        const netToday = todayIncome - todayExpenses;
+      case 'finance':
         return {
-          count: netToday,
-          label: netToday >= 0 ? 'net gain' : 'net spent',
+          count: todaysFinance.length,
+          label: 'entries today',
           status: todaysFinance.length > 0 ? 'active' : 'empty'
+        };
+      case 'weather':
+          return {
+          count: weatherData?.temperature ? `${Math.round(weatherData.temperature)}°` : null,
+          label: weatherData?.condition || 'not available',
+          status: weatherData ? 'active' : 'empty',
+          condition: weatherData?.condition
+          };
+      case 'notes':
+        return {
+          count: null,
+          label: 'notes',
+          status: 'active'
         };
       default:
         return {
@@ -993,174 +949,42 @@ export function Dashboard() {
     }
   };
 
-  // Get available services for subscription
   const getAvailableServices = () => {
-    console.log('getAvailableServices called');
-    console.log('availableWidgets:', availableWidgets);
-    console.log('serviceTiles:', serviceTiles);
-    
-    // First try to get from availableWidgets (API response)
-    // The API returns widgetTypes grouped by category, so we need to flatten it
-    const allWidgetTypes = Object.values(availableWidgets).flat();
-    console.log('allWidgetTypes from API:', allWidgetTypes);
-    
-    // Get currently subscribed widget names
-    const subscribedWidgetNames = new Set(serviceTiles.map(tile => tile.name));
-    console.log('subscribedWidgetNames:', subscribedWidgetNames);
-    
-    // If availableWidgets is empty, create a fallback list based on common widget types
-    if (allWidgetTypes.length === 0) {
-      console.log('Using fallback widget types');
-      const fallbackWidgetTypes = [
-        {
-          name: 'habit_tracker',
-          display_name: 'Habit Tracker',
-          description: 'Track your daily habits and build routines',
-          icon: 'Target',
-          category: 'health'
-        },
-        {
-          name: 'notes',
-          display_name: 'Quick Notes',
-          description: 'Take quick notes and reminders',
-          icon: 'FileText',
-          category: 'productivity'
-        },
-        {
-          name: 'weather',
-          display_name: 'Weather',
-          description: 'Current weather information',
-          icon: 'Cloud',
-          category: 'utility'
-        },
-        {
-          name: 'goals',
-          display_name: 'Goals',
-          description: 'Set and track your personal goals',
-          icon: 'Target',
-          category: 'productivity'
-        },
-        {
-          name: 'meditation',
-          display_name: 'Meditation',
-          description: 'Track your meditation sessions',
-          icon: 'Heart',
-          category: 'wellness'
-        },
-        {
-          name: 'reading',
-          display_name: 'Reading Tracker',
-          description: 'Track your reading progress',
-          icon: 'Book',
-          category: 'productivity'
-        }
-      ];
-      
-      // Filter out already subscribed widgets and return available ones
-      const availableFromFallback = fallbackWidgetTypes.filter((widgetType: any) => 
-        widgetType.name !== 'add_service' && 
-        !subscribedWidgetNames.has(widgetType.name)
-      ).map((widgetType: any) => ({
-        id: widgetType.name,
-        name: widgetType.name,
-        displayName: widgetType.display_name,
-        description: widgetType.description,
-        icon: widgetType.icon,
-        category: widgetType.category,
-        color: getColorForCategory(widgetType.category),
-        gradient: getGradientForCategory(widgetType.category),
-        isEnabled: false,
-        route: `/dashboard/${widgetType.name}`
-      }));
-      
-      console.log('Available services from fallback:', availableFromFallback);
-      return availableFromFallback;
-    }
-    
-    // Filter out already subscribed widgets and return available ones
-    const availableFromAPI = allWidgetTypes.filter((widgetType: any) => 
-      widgetType.name !== 'add_service' && 
-      !subscribedWidgetNames.has(widgetType.name)
-    ).map((widgetType: any) => ({
-      id: widgetType.name,
-      name: widgetType.name,
-      displayName: widgetType.display_name,
-      description: widgetType.description,
-      icon: widgetType.icon,
-      category: widgetType.category,
-      color: getColorForCategory(widgetType.category),
-      gradient: getGradientForCategory(widgetType.category),
-      isEnabled: false,
-      route: `/dashboard/${widgetType.name}`
-    }));
-    
-    console.log('Available services from API:', availableFromAPI);
-    return availableFromAPI;
+    return serviceTiles.filter(tile => tile.id !== 'add-service');
   };
 
-  // Helper function to get color for widget category
   const getColorForCategory = (category: string): string => {
-    const colorMap: { [key: string]: string } = {
-      productivity: 'blue',
-      health: 'pink',
-      finance: 'green',
-      utility: 'orange',
-      insights: 'purple',
-      wellness: 'pink',
-      default: 'gray'
+    const colors: { [key: string]: string } = {
+      'productivity': 'blue',
+      'health': 'green',
+      'finance': 'emerald',
+      'weather': 'sky',
+      'notes': 'purple',
+      'system': 'gray'
     };
-    return colorMap[category] || colorMap.default;
+    return colors[category] || 'blue';
   };
 
-  // Helper function to get gradient for widget category
   const getGradientForCategory = (category: string): string => {
-    const gradientMap: { [key: string]: string } = {
-      productivity: 'from-blue-500 to-cyan-500',
-      health: 'from-pink-500 to-rose-500',
-      finance: 'from-green-500 to-emerald-500',
-      utility: 'from-orange-500 to-amber-500',
-      insights: 'from-purple-500 to-violet-500',
-      wellness: 'from-pink-500 to-rose-500',
-      default: 'from-gray-500 to-slate-500'
+    const gradients: { [key: string]: string } = {
+      'productivity': 'from-blue-500 to-blue-600',
+      'health': 'from-green-500 to-green-600',
+      'finance': 'from-emerald-500 to-emerald-600',
+      'weather': 'from-sky-500 to-sky-600',
+      'notes': 'from-purple-500 to-purple-600',
+      'system': 'from-gray-500 to-gray-600'
     };
-    return gradientMap[category] || gradientMap.default;
+    return gradients[category] || 'from-blue-500 to-blue-600';
   };
 
   useEffect(() => {
-    const initializeDashboard = async () => {
-      try {
-        await checkUser();
-      } catch (error) {
-        console.error('Error initializing dashboard:', error);
-        setError('Failed to initialize dashboard');
-        setLoading(false);
-      }
-    };
-    
-    initializeDashboard();
+    checkUser();
   }, []);
 
   useEffect(() => {
     if (user && !dataLoadedRef.current) {
-      const loadDashboardData = async () => {
-        try {
           dataLoadedRef.current = true;
-          await Promise.all([
-            fetchProfile(),
-            fetchUserWidgets(),
-            fetchAvailableWidgets(),
-            fetchTodaysData(),
-            calculateStats()
-          ]);
-        } catch (error) {
-          console.error('Error loading dashboard data:', error);
-          setError('Failed to load dashboard data');
-        } finally {
-          setLoading(false);
-    }
-  };
-      
-      loadDashboardData();
+      initializeDashboard();
     } else if (user === null && !loading) {
       // User is not authenticated, redirect to auth
       router.push('/auth');
@@ -1174,18 +998,19 @@ export function Dashboard() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading your dashboard...</p>
-        </div>
+      <div className="min-h-screen bg-white">
+        <TopBar isLoggedIn={true} />
+        <main className="pt-16">
+          <SkeletonHero />
+          <SkeletonServicesGrid />
+        </main>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 flex items-center justify-center">
+      <div className="min-h-screen bg-white flex items-center justify-center">
         <div className="max-w-md w-full bg-white rounded-xl shadow-lg p-8 text-center">
           <div className="text-red-500 mb-4">
             <AlertCircle className="w-12 h-12 mx-auto" />
@@ -1194,7 +1019,7 @@ export function Dashboard() {
           <p className="text-gray-600 mb-4">{error}</p>
           <button 
             onClick={() => router.refresh()}
-            className="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 transition-colors"
+            className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-colors"
           >
             Try Again
           </button>
@@ -1204,7 +1029,7 @@ export function Dashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
+    <div className="min-h-screen bg-white">
       <TopBar isLoggedIn={true} />
       
       {/* Notifications */}
@@ -1249,141 +1074,229 @@ export function Dashboard() {
         ))}
       </AnimatePresence>
 
-      <main className="pt-32 px-4 pb-8">
-        {/* Header Section */}
-        <div className="max-w-7xl mx-auto mb-8 min-w-[320px]">
+      <main className="pt-16">
+        {/* Hero Section */}
+        <section className="bg-gradient-to-b from-gray-50 to-white relative overflow-hidden">
+          {/* Apple-style background threads */}
+          <div className="absolute inset-0 overflow-hidden">
+            {/* Curved thread 1 */}
+            <div className="absolute top-10 left-1/4 w-96 h-96 opacity-10">
+              <svg viewBox="0 0 200 200" className="w-full h-full">
+                <path
+                  d="M 20 100 Q 50 20 100 100 T 180 100"
+                  stroke="url(#gradient1)"
+                  strokeWidth="2"
+                  fill="none"
+                  className="animate-pulse"
+                />
+                <defs>
+                  <linearGradient id="gradient1" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" stopColor="#3B82F6" />
+                    <stop offset="100%" stopColor="#8B5CF6" />
+                  </linearGradient>
+                </defs>
+              </svg>
+            </div>
+            
+            {/* Curved thread 2 */}
+            <div className="absolute top-20 right-1/3 w-80 h-80 opacity-8">
+              <svg viewBox="0 0 200 200" className="w-full h-full">
+                <path
+                  d="M 30 80 Q 80 30 130 80 T 170 80"
+                  stroke="url(#gradient2)"
+                  strokeWidth="1.5"
+                  fill="none"
+                  className="animate-pulse"
+                  style={{ animationDelay: '1s' }}
+                />
+                <defs>
+                  <linearGradient id="gradient2" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" stopColor="#10B981" />
+                    <stop offset="100%" stopColor="#3B82F6" />
+                  </linearGradient>
+                </defs>
+              </svg>
+            </div>
+            
+            {/* Curved thread 3 */}
+            <div className="absolute bottom-10 left-1/3 w-72 h-72 opacity-6">
+              <svg viewBox="0 0 200 200" className="w-full h-full">
+                <path
+                  d="M 40 60 Q 90 40 140 60 T 160 60"
+                  stroke="url(#gradient3)"
+                  strokeWidth="1"
+                  fill="none"
+                  className="animate-pulse"
+                  style={{ animationDelay: '2s' }}
+                />
+                <defs>
+                  <linearGradient id="gradient3" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" stopColor="#F59E0B" />
+                    <stop offset="100%" stopColor="#EF4444" />
+                  </linearGradient>
+                </defs>
+              </svg>
+            </div>
+            
+            {/* Floating dots */}
+            <div className="absolute top-1/4 right-1/4 w-2 h-2 bg-blue-400 rounded-full opacity-30 animate-bounce"></div>
+            <div className="absolute top-1/3 left-1/5 w-1.5 h-1.5 bg-purple-400 rounded-full opacity-25 animate-bounce" style={{ animationDelay: '0.5s' }}></div>
+            <div className="absolute bottom-1/4 right-1/5 w-1 h-1 bg-green-400 rounded-full opacity-20 animate-bounce" style={{ animationDelay: '1s' }}></div>
+            
+            {/* Subtle grid pattern */}
+            <div className="absolute inset-0 opacity-5">
+              <div className="w-full h-full" style={{
+                backgroundImage: `radial-gradient(circle at 1px 1px, rgba(59, 130, 246, 0.1) 1px, transparent 0)`,
+                backgroundSize: '40px 40px'
+              }}></div>
+            </div>
+          </div>
+          
+          <div className="max-w-7xl mx-auto px-6 py-16 relative z-10">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6 }}
-            className="text-center mb-8"
+              className="text-center"
           >
-            <h1 className="text-4xl font-bold text-gray-900 mb-2">
-              {getTimeBasedGreeting()}, {profile?.full_name?.split(' ')[0] || 'there'}! 👋
-            </h1>
-            <p className="text-lg text-gray-600">
-              Welcome to your personal command center
-            </p>
+              {!profile ? (
+                <>
+                  <Skeleton variant="text" className="h-12 mb-4 w-96 mx-auto" />
+                  <Skeleton variant="text" className="h-6 w-2/3 mx-auto" />
+                </>
+              ) : (
+                <>
+                  <h1 className="text-5xl font-bold text-gray-900 mb-4 tracking-tight">
+                    {getTimeBasedGreeting()}, {profile?.full_name?.split(' ')[0] || 'there'}
+                  </h1>
+                  <p className="text-xl text-gray-600 max-w-2xl mx-auto leading-relaxed">
+                    Your personal command center for productivity, wellness, and life management
+                  </p>
+                </>
+              )}
           </motion.div>
+          </div>
+        </section>
 
-          {/* Service Tiles Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+        {/* Services Grid */}
+        <section className="py-16">
+          <div className="max-w-7xl mx-auto px-6">
+            <div className="mb-12">
+              <h2 className="text-3xl font-semibold text-gray-900 mb-4">Your Services</h2>
+              <p className="text-gray-600">Manage your daily tasks, track your mood, and stay organized</p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {serviceTiles.map((tile, index) => {
               const IconComponent = getTileIcon(tile.icon);
               const previewData = getTilePreviewData(tile);
               
+              // Show skeleton if tile is loading
+              if (tile.loading) {
+                return (
+                  <motion.div
+                    key={tile.id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.6, delay: index * 0.1 }}
+                  >
+                    <SkeletonTile />
+                  </motion.div>
+                );
+              }
+              
+              if (tile.id === 'add-service') {
               return (
                 <motion.div
                   key={tile.id}
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.6, delay: index * 0.1 }}
-                  className={`relative group cursor-pointer h-64 min-w-[280px] ${
-                    tile.isEnabled ? 'opacity-100' : 'opacity-60'
-                  }`}
+                    className="group cursor-pointer"
                   onMouseEnter={() => setHoveredTile(tile.id)}
                   onMouseLeave={() => setHoveredTile(null)}
                   onClick={() => handleTileClick(tile)}
                 >
-                  <motion.div
-                    className={`relative overflow-hidden rounded-2xl bg-white/80 backdrop-blur-sm border border-white/20 shadow-lg hover:shadow-2xl transition-all duration-300 h-full ${
-                      hoveredTile === tile.id ? 'scale-105' : 'scale-100'
-                    }`}
-                    whileHover={{ y: -8 }}
-                    transition={{ type: "spring", stiffness: 300, damping: 20 }}
-                  >
-                    {/* Gradient Background */}
-                    <div className={`absolute inset-0 bg-gradient-to-br ${tile.gradient} opacity-5 group-hover:opacity-10 transition-opacity duration-300`} />
+                    <div className="bg-gray-50 rounded-2xl border-2 border-dashed border-gray-300 p-6 h-full transition-all duration-300 hover:shadow-lg hover:border-blue-400 hover:bg-blue-50">
+                      {/* Header */}
+                      <div className="flex items-start justify-between mb-4">
+                        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center">
+                          <Plus className="w-6 h-6 text-white" />
+                        </div>
+                      </div>
                     
                     {/* Content */}
-                    <div className="relative p-6 h-full flex flex-col">
-                      {/* Loading Overlay */}
-                      {tile.loading && (
-                        <div className="absolute inset-0 bg-white/80 backdrop-blur-sm rounded-2xl flex items-center justify-center z-10">
-                          <div className="flex items-center space-x-2">
-                            <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
-                            <span className="text-sm text-gray-600">Updating...</span>
-                          </div>
-                        </div>
-                      )}
+                      <h3 className="text-xl font-semibold text-gray-900 mb-2">
+                        Add Service
+                      </h3>
+                      <p className="text-gray-600 text-sm mb-6 leading-relaxed">
+                        Discover and add new services to your dashboard
+                      </p>
                       
+                      {/* Services count */}
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-gray-500">
+                          {getAvailableServices().filter(s => !s.isEnabled).length} services available
+                        </span>
+                        <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-blue-600 transition-colors" />
+                      </div>
+                    </div>
+                  </motion.div>
+                );
+              }
+              
+              return (
+                <Link
+                  key={tile.id}
+                  href={tile.isEnabled ? tile.route : '#'}
+                  className="block"
+                >
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.6, delay: index * 0.1 }}
+                    className="group cursor-pointer"
+                    onMouseEnter={() => setHoveredTile(tile.id)}
+                    onMouseLeave={() => setHoveredTile(null)}
+                    onClick={(e) => {
+                      if (!tile.isEnabled) {
+                        e.preventDefault();
+                        addNotification({
+                          type: 'info',
+                          title: 'Service Disabled',
+                          message: `${tile.displayName} is currently disabled`,
+                        });
+                      }
+                    }}
+                  >
+                    <div className="bg-white rounded-2xl border border-gray-200 p-6 h-full transition-all duration-300 hover:shadow-lg hover:border-gray-300">
+                      {/* Header */}
                       <div className="flex items-start justify-between mb-4">
-                        <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${tile.gradient} flex items-center justify-center shadow-lg`}>
+                        <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${tile.gradient} flex items-center justify-center`}>
                           <IconComponent className="w-6 h-6 text-white" />
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          {tile.isEnabled ? (
-                            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-                          ) : (
-                            <div className="w-2 h-2 bg-gray-300 rounded-full" />
-                          )}
-                          <ExternalLink className="w-4 h-4 text-gray-400 group-hover:text-gray-600 transition-colors" />
                         </div>
                       </div>
                       
-                      <h3 className="text-xl font-bold text-gray-900 mb-2">
+                      {/* Content */}
+                      <h3 className="text-xl font-semibold text-gray-900 mb-2">
                         {tile.displayName}
                       </h3>
-                      <p className="text-gray-600 text-sm mb-4 flex-1">
+                      <p className="text-gray-600 text-sm mb-6 leading-relaxed">
                         {tile.description}
                       </p>
                       
-                      {/* Preview Data - Only show for enabled services that aren't the add service tile */}
-                      {tile.id !== 'add-service' && (
-                        <div className="flex items-center justify-between mt-auto">
-                          <div className="flex items-center space-x-2">
-                            {previewData.count !== null ? (
-                              <span className="text-2xl font-bold text-gray-900">
-                                {previewData.count}
-                              </span>
-                            ) : (
-                              <span className="text-sm text-gray-500">—</span>
-                            )}
-                            <span className="text-sm text-gray-500">
-                              {previewData.label}
-                            </span>
-                          </div>
-                          <ArrowRight className="w-4 h-4 text-gray-400 group-hover:text-gray-600 transition-colors" />
-                        </div>
-                      )}
-                      
-                      {/* Add Service Tile - Simple call to action */}
-                      {tile.id === 'add-service' && (
-                        <div className="mt-auto">
-                          <div className="flex items-center justify-between">
-                            <span className="text-sm text-gray-500">
-                              {getAvailableServices().filter(s => !s.isEnabled).length} services available
-                            </span>
-                            <ArrowRight className="w-4 h-4 text-gray-400 group-hover:text-gray-600 transition-colors" />
-                          </div>
-                        </div>
-                      )}
-                      
-                      {/* Status Indicator - Only show for non-add-service tiles */}
-                      {tile.id !== 'add-service' && (
-                        <div className="mt-4 flex items-center space-x-2">
-                          <div className={`w-2 h-2 rounded-full ${
-                            previewData.status === 'active' || previewData.status === 'logged' ? 'bg-green-500' :
-                            previewData.status === 'empty' ? 'bg-yellow-500' : 'bg-gray-300'
-                          }`} />
-                          <span className="text-xs text-gray-500 capitalize">
-                            {previewData.status}
-                          </span>
-                        </div>
-                      )}
-                      
-                      {/* Hover Overlay */}
-                      <motion.div
-                        className="absolute inset-0 bg-gradient-to-br from-black/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"
-                        initial={false}
-                      />
+                      {/* Arrow indicator */}
+                      <div className="flex items-center justify-end">
+                        <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-gray-600 transition-colors" />
+                      </div>
                     </div>
                   </motion.div>
-                </motion.div>
+                </Link>
               );
             })}
-          </div>
-        </div>
+                          </div>
+                        </div>
+        </section>
       </main>
 
       {/* Modals */}
@@ -1405,7 +1318,6 @@ export function Dashboard() {
             addingWidget={addingWidget}
             enabledWidgets={widgets.map(w => w.widget_type_id)}
             onUnsubscribe={handleUnsubscribeFromModal}
-            isLoading={modalLoading}
           />
         )}
       </AnimatePresence>

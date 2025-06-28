@@ -7,6 +7,7 @@ interface UseWeatherReturn {
   error: string | null;
   refreshWeather: () => Promise<void>;
   updateSettings: (newSettings: Partial<WeatherSettings>) => void;
+  settings: WeatherSettings;
 }
 
 export const useWeather = (initialSettings: WeatherSettings): UseWeatherReturn => {
@@ -77,5 +78,6 @@ export const useWeather = (initialSettings: WeatherSettings): UseWeatherReturn =
     error,
     refreshWeather,
     updateSettings,
+    settings,
   };
 }; 

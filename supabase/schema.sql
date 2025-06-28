@@ -88,11 +88,16 @@ CREATE TABLE IF NOT EXISTS public.finance_entries (
 CREATE TABLE IF NOT EXISTS public.notes (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
     user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE,
-    title TEXT NOT NULL,
-    content TEXT,
-    category TEXT,
-    tags TEXT[],
-    is_pinned BOOLEAN DEFAULT false,
+    title TEXT DEFAULT '',
+    content TEXT DEFAULT '',
+    tags TEXT[] DEFAULT '{}',
+    category TEXT DEFAULT 'personal' CHECK (category IN ('personal', 'work', 'ideas', 'todo', 'study', 'other')),
+    color TEXT DEFAULT 'default' CHECK (color IN ('default', 'blue', 'green', 'yellow', 'pink', 'purple')),
+    is_pinned BOOLEAN DEFAULT FALSE,
+    is_starred BOOLEAN DEFAULT FALSE,
+    is_archived BOOLEAN DEFAULT FALSE,
+    word_count INTEGER DEFAULT 0,
+    character_count INTEGER DEFAULT 0,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );

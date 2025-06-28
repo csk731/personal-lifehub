@@ -217,7 +217,37 @@ export const validation = {
 
 export async function getAuthToken(): Promise<string | null> {
   try {
-    const { data: { session } } = await supabase.auth.getSession();
+    // Try to get the session with a small retry mechanism
+    let session = null;
+    let attempts = 0;
+    const maxAttempts = 3;
+    
+    while (attempts < maxAttempts) {
+      const { data: { session: currentSession }, error } = await supabase.auth.getSession();
+      
+      if (error) {
+        console.error(`Error getting auth token (attempt ${attempts + 1}):`, error);
+        attempts++;
+        if (attempts < maxAttempts) {
+          // Wait a bit before retrying
+          await new Promise(resolve => setTimeout(resolve, 100 * attempts));
+          continue;
+        }
+        return null;
+      }
+      
+      if (currentSession?.access_token) {
+        session = currentSession;
+        break;
+      }
+      
+      attempts++;
+      if (attempts < maxAttempts) {
+        // Wait a bit before retrying
+        await new Promise(resolve => setTimeout(resolve, 100 * attempts));
+      }
+    }
+    
     return session?.access_token || null;
   } catch (error) {
     console.error('Error getting auth token:', error);
@@ -227,6 +257,7 @@ export async function getAuthToken(): Promise<string | null> {
 
 export async function getAuthHeaders(): Promise<HeadersInit> {
   const token = await getAuthToken();
+  
   return {
     'Content-Type': 'application/json',
     ...(token && { 'Authorization': `Bearer ${token}` })

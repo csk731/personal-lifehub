@@ -38,6 +38,18 @@ const WeatherWidget: React.FC<WidgetProps> = (props) => {
 
   const { weatherData, isLoading, error, refreshWeather, updateSettings } = useWeather(settings);
 
+  // Save weather data to widget config when it updates
+  React.useEffect(() => {
+    if (weatherData) {
+      onUpdate(widget.id, { 
+        config: { 
+          ...widget.settings, 
+          weatherData: weatherData 
+        } 
+      });
+    }
+  }, [weatherData, widget.id, widget.settings, onUpdate]);
+
   const handleRefresh = async () => {
     setIsRefreshing(true);
     await refreshWeather();

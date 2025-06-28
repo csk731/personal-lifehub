@@ -252,4 +252,34 @@ export interface WeatherSettings {
   showHourly: boolean;
   autoRefresh: boolean;
   refreshInterval: number; // in minutes
+}
+
+export interface Note {
+  id: string;
+  title: string;
+  content: string;
+  tags: string[];
+  category: string;
+  color: string;
+  isPinned: boolean;
+  isStarred: boolean;
+  isArchived: boolean;
+  created_at: string;
+  updated_at: string;
+  wordCount: number;
+  characterCount: number;
+}
+
+export interface NoteCategory {
+  id: string;
+  name: string;
+  color: string;
+  icon: string;
+}
+
+export interface NoteColor {
+  name: string;
+  bg: string;
+  border: string;
+  text: string;
 } 
