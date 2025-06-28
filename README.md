@@ -93,7 +93,15 @@ RESTful API routes for all operations:
    SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
    ```
 
-5. **Start the development server**
+5. **Database Schema Setup**
+   Run the following SQL files in your Supabase SQL Editor in order:
+   - `supabase/schema.sql` - Main application schema
+   - `supabase/profile-schema-update.sql` - User profiles
+   - `supabase/complete-notes-setup.sql` - Notes system
+   - `supabase/calendar-schema.sql` - Calendar system
+   - `supabase/add-widget-constraints.sql` - Widget constraints
+
+6. **Start the development server**
 ```bash
 npm run dev
    ```

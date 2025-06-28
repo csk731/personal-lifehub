@@ -755,7 +755,13 @@ export default function NotesDashboard() {
       
       // Update selected note if it's the one being modified
       if (selectedNote?.id === noteId) {
-        setSelectedNote(updatedNote);
+        // Preserve the current content and title from selectedNote to avoid losing unsaved changes
+        setSelectedNote({
+          ...updatedNote,
+          title: selectedNote.title,
+          content: selectedNote.content,
+          tags: selectedNote.tags
+        });
       }
       
       setShowSuccess(true);
@@ -785,7 +791,13 @@ export default function NotesDashboard() {
       
       // Update selected note if it's the one being modified
       if (selectedNote?.id === noteId) {
-        setSelectedNote(updatedNote);
+        // Preserve the current content and title from selectedNote to avoid losing unsaved changes
+        setSelectedNote({
+          ...updatedNote,
+          title: selectedNote.title,
+          content: selectedNote.content,
+          tags: selectedNote.tags
+        });
       }
       
       setShowSuccess(true);

@@ -6,20 +6,6 @@ import { v4 as uuidv4 } from 'uuid';
 
 export const widgetTypes = [
   {
-    id: 'weather',
-    name: 'Weather',
-    description: 'Display current weather information',
-    icon: '🌤️',
-    component: 'WeatherWidget',
-    defaultConfig: {
-      location: '',
-      unit: 'celsius',
-      showDetails: true,
-      autoRefresh: true,
-      refreshInterval: 30
-    }
-  },
-  {
     id: 'tasks',
     name: 'Tasks',
     description: 'Manage your daily tasks',
@@ -234,26 +220,6 @@ export const useWidgetStore = create<WidgetStore>()(
               defaultSettings: {},
               component: () => null,
               category: 'finance',
-              version: '1.0.0',
-              isActive: true,
-            },
-            {
-              id: 'weather',
-              name: 'Weather',
-              type: 'weather',
-              description: 'Check current weather and forecast',
-              icon: 'Cloud',
-              defaultSize: { width: 4, height: 6 },
-              defaultSettings: {
-                location: 'New York',
-                unit: 'celsius',
-                showForecast: true,
-                showHourly: false,
-                autoRefresh: true,
-                refreshInterval: 10,
-              },
-              component: () => null,
-              category: 'utilities',
               version: '1.0.0',
               isActive: true,
             },

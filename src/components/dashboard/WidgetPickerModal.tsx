@@ -65,7 +65,6 @@ export function WidgetPickerModal({
       'productivity': 'blue',
       'health': 'green',
       'finance': 'emerald',
-      'weather': 'sky',
       'notes': 'purple',
       'system': 'gray',
       'utility': 'orange'
@@ -78,7 +77,6 @@ export function WidgetPickerModal({
       'productivity': 'from-blue-500 to-blue-600',
       'health': 'from-green-500 to-green-600',
       'finance': 'from-emerald-500 to-emerald-600',
-      'weather': 'from-sky-500 to-sky-600',
       'notes': 'from-purple-500 to-purple-600',
       'system': 'from-gray-500 to-gray-600',
       'utility': 'from-orange-500 to-orange-600'

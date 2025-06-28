@@ -94,34 +94,7 @@ const SampleWidget: React.FC<WidgetProps> = (props) => {
         );
 
       case 'weather':
-        return (
-          <div className="space-y-4">
-            <div className="flex items-center space-x-2 text-muted-foreground">
-              <Cloud className="w-5 h-5" />
-              <span className="text-sm font-medium">Weather</span>
-            </div>
-            <div className="text-center space-y-2">
-              <div className="flex items-center justify-center space-x-3">
-                <Sun className="w-8 h-8 text-yellow-500" />
-                <div>
-                  <div className="text-2xl font-bold">22°C</div>
-                  <div className="text-xs text-muted-foreground">Feels like 24°C</div>
-                </div>
-              </div>
-              <div className="text-sm font-medium">Partly cloudy</div>
-            </div>
-            <div className="grid grid-cols-2 gap-2 text-xs">
-              <div className="flex items-center space-x-1">
-                <Droplets className="w-3 h-3 text-blue-500" />
-                <span>Humidity: 65%</span>
-              </div>
-              <div className="flex items-center space-x-1">
-                <Wind className="w-3 h-3 text-gray-500" />
-                <span>Wind: 15 km/h</span>
-              </div>
-            </div>
-          </div>
-        );
+        return null;
 
       default:
         return (

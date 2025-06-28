@@ -40,6 +40,7 @@ import { WidgetWrapper } from '../widgets/WidgetWrapper';
 import { TaskWidget } from '../widgets/TaskWidget';
 import { MoodWidget } from '../widgets/MoodWidget';
 import { FinanceWidget } from '../widgets/FinanceWidget';
+import { CalendarWidget } from '../widgets/CalendarWidget';
 import WeatherWidget from '../widgets/WeatherWidget';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
@@ -111,11 +112,11 @@ interface ServiceTile {
 }
 
 const widgetComponents: { [key: string]: React.ComponentType<any> } = {
-  'weather': WeatherWidget,
   'tasks': TaskWidget,
   'finance': FinanceWidget,
   'mood': MoodWidget,
   'notes': NotesWidget,
+  'calendar': CalendarWidget,
 };
 
 const moodEmojis: { [key: number]: string } = {
@@ -188,7 +189,6 @@ export function Dashboard() {
   const [todaysTasks, setTodaysTasks] = useState<any[]>([]);
   const [todaysMood, setTodaysMood] = useState<any | null>(null);
   const [todaysFinance, setTodaysFinance] = useState<any[]>([]);
-  const [weatherData, setWeatherData] = useState<any>(null);
   const dataLoadedRef = useRef(false);
 
   // Service tiles configuration - will be populated dynamically
@@ -312,16 +312,12 @@ export function Dashboard() {
         setTodaysFinance([]);
       }
       
-      // Fetch weather data (optional)
-      await fetchWeatherData();
-      
     } catch (error) {
       console.error('Error in fetchTodaysData:', error);
       // Set default values to prevent undefined errors
       setTodaysTasks([]);
       setTodaysMood(null);
       setTodaysFinance([]);
-      setWeatherData(null);
     }
   };
 
@@ -398,7 +394,7 @@ export function Dashboard() {
               case 'habit_tracker': return '/dashboard/habits';
               case 'calendar': return '/dashboard/calendar';
               default: return '/dashboard';
-      }
+            }
           };
           
           const serviceId = getServiceId(widget.widget_types.name);
@@ -889,24 +885,6 @@ export function Dashboard() {
     return iconMap[iconName] || Plus;
   };
 
-  const fetchWeatherData = async () => {
-    try {
-      const headers = await getAuthHeaders();
-      const response = await fetch('/api/weather', { headers });
-      
-      if (response.ok) {
-        const data = await response.json();
-        setWeatherData(data);
-      } else {
-        console.warn('Weather data not available:', response.status);
-        setWeatherData(null);
-      }
-    } catch (error) {
-      console.warn('Error fetching weather data:', error);
-      setWeatherData(null);
-    }
-  };
-
   const getTilePreviewData = (tile: ServiceTile) => {
     switch (tile.id) {
       case 'tasks':
@@ -927,13 +905,6 @@ export function Dashboard() {
           label: 'entries today',
           status: todaysFinance.length > 0 ? 'active' : 'empty'
         };
-      case 'weather':
-          return {
-          count: weatherData?.temperature ? `${Math.round(weatherData.temperature)}°` : null,
-          label: weatherData?.condition || 'not available',
-          status: weatherData ? 'active' : 'empty',
-          condition: weatherData?.condition
-          };
       case 'notes':
         return {
           count: null,

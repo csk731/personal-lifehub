@@ -75,6 +75,18 @@ export async function POST(request: NextRequest) {
     console.log('Is color in allowed list?', allowedColors.includes(color));
     console.log('=============================');
 
+    // Check for duplicate folder name for this user
+    const { data: existing } = await supabase
+      .from('folders')
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('name', name.trim())
+      .maybeSingle();
+
+    if (existing) {
+      return NextResponse.json({ error: 'A folder with this name already exists' }, { status: 400 });
+    }
+
     // Get the highest sort_order to place new folder at the end
     const { data: maxSortResult } = await supabase
       .from('folders')

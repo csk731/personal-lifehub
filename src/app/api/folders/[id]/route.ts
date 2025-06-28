@@ -8,11 +8,12 @@ const supabase = createClient(
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     console.log('=== FOLDER UPDATE API CALLED ===');
-    console.log('Folder ID:', params.id);
+    console.log('Folder ID:', id);
     
     // Extract token from request headers
     const authHeader = request.headers.get('authorization');
@@ -63,7 +64,7 @@ export async function PUT(
         ...(sort_order !== undefined && { sort_order }),
         updated_at: new Date().toISOString(),
       })
-      .eq('id', params.id)
+      .eq('id', id)
       .eq('user_id', user.id)
       .select()
       .single();
@@ -83,9 +84,10 @@ export async function PUT(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     // Extract token from request headers
     const authHeader = request.headers.get('authorization');
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -104,7 +106,7 @@ export async function DELETE(
     const { data: folder } = await supabase
       .from('folders')
       .select('is_default')
-      .eq('id', params.id)
+      .eq('id', id)
       .eq('user_id', user.id)
       .single();
 
@@ -115,7 +117,7 @@ export async function DELETE(
     const { error } = await supabase
       .from('folders')
       .delete()
-      .eq('id', params.id)
+      .eq('id', id)
       .eq('user_id', user.id);
 
     if (error) {

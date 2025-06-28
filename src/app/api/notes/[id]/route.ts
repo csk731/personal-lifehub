@@ -8,9 +8,10 @@ const supabase = createClient(
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     // Extract token from request headers
     const authHeader = request.headers.get('authorization');
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -36,7 +37,7 @@ export async function GET(
           emoji
         )
       `)
-      .eq('id', params.id)
+      .eq('id', id)
       .eq('user_id', user.id)
       .single();
 
@@ -75,9 +76,10 @@ export async function GET(
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     // Extract token from request headers
     const authHeader = request.headers.get('authorization');
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -108,34 +110,33 @@ export async function PUT(
       finalFolderId = folder?.id || null;
     }
 
-    // Calculate word and character counts if not provided
-    const finalWordCount = wordCount !== undefined ? wordCount : 
-      (content ? content.trim().split(/\s+/).filter((word: string) => word.length > 0).length : 0);
-    const finalCharacterCount = characterCount !== undefined ? characterCount : 
-      (content ? content.length : 0);
+    // Build updates object dynamically – only include fields that were provided
+    const updates: Record<string, any> = { updated_at: new Date().toISOString() };
 
-    let safeColor = color;
+    if (title !== undefined) updates.title = title;
+    if (content !== undefined) updates.content = content;
+    if (tags !== undefined) updates.tags = tags;
+    if (finalFolderId !== undefined) updates.folder_id = finalFolderId;
     if (color !== undefined) {
       const allowedColors = ['default', 'blue', 'green', 'yellow', 'pink', 'purple'];
-      safeColor = allowedColors.includes(color) ? color : 'default';
+      updates.color = allowedColors.includes(color) ? color : 'default';
+    }
+    if (isPinned !== undefined) updates.is_pinned = isPinned;
+    if (isStarred !== undefined) updates.is_starred = isStarred;
+    if (isArchived !== undefined) updates.is_archived = isArchived;
+
+    // Calculate word and character counts if content provided or counts explicitly provided
+    if (content !== undefined || wordCount !== undefined || characterCount !== undefined) {
+      const finalWordCount = wordCount !== undefined ? wordCount : (content ? content.trim().split(/\s+/).filter((word: string) => word.length > 0).length : 0);
+      const finalCharacterCount = characterCount !== undefined ? characterCount : (content ? content.length : 0);
+      updates.word_count = finalWordCount;
+      updates.character_count = finalCharacterCount;
     }
 
     const { data: note, error } = await supabase
       .from('notes')
-      .update({
-        title: title !== undefined ? title : '',
-        content: content !== undefined ? content : '',
-        tags: tags !== undefined ? tags : [],
-        folder_id: finalFolderId,
-        color: safeColor !== undefined ? safeColor : 'default',
-        is_pinned: isPinned !== undefined ? isPinned : false,
-        is_starred: isStarred !== undefined ? isStarred : false,
-        is_archived: isArchived !== undefined ? isArchived : false,
-        word_count: finalWordCount,
-        character_count: finalCharacterCount,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', params.id)
+      .update(updates)
+      .eq('id', id)
       .eq('user_id', user.id)
       .select(`
         *,
@@ -183,9 +184,10 @@ export async function PUT(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     // Extract token from request headers
     const authHeader = request.headers.get('authorization');
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -203,7 +205,7 @@ export async function DELETE(
     const { error } = await supabase
       .from('notes')
       .delete()
-      .eq('id', params.id)
+      .eq('id', id)
       .eq('user_id', user.id);
 
     if (error) {
