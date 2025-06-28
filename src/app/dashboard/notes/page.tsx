@@ -154,6 +154,8 @@ export default function NotesDashboard() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [showCreateFolder, setShowCreateFolder] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
+  const [newFolderEmoji, setNewFolderEmoji] = useState('📁');
+  const [newFolderColor, setNewFolderColor] = useState('blue');
   const [isCreatingFolder, setIsCreatingFolder] = useState(false);
   const [editingFolder, setEditingFolder] = useState<string | null>(null);
   const [deletingFolder, setDeletingFolder] = useState<string | null>(null);
@@ -183,6 +185,8 @@ export default function NotesDashboard() {
   const [editingFolderName, setEditingFolderName] = useState<string>('');
   // Add state to track folder name saving
   const [savingFolderName, setSavingFolderName] = useState<string | null>(null);
+  // Tag filtering state
+  const [selectedTag, setSelectedTag] = useState<string | null>(null);
   
   const editorRef = useRef<HTMLTextAreaElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -234,6 +238,20 @@ export default function NotesDashboard() {
     { name: 'cyan', bg: 'bg-cyan-50', border: 'border-cyan-200', text: 'text-cyan-900' },
   ];
 
+  // Folder emoji options
+  const folderEmojiOptions = [
+    '📁', '📂', '🗂️', '📋', '📝', '📄', '📜', '📚', '📖', '📕', '📗', '📘', '📙', '📓', '📔', '📒',
+    '💼', '💻', '📱', '📞', '📟', '📠', '🔋', '💡', '🔍', '🔎', '🔐', '🔑', '🔒', '🔓', '🔏', '🔐',
+    '📌', '📍', '📎', '🖇️', '📐', '📏', '✂️', '🔧', '🔨', '🔩', '🔪', '💉', '💊', '🔬', '🔭', '📡',
+    '🎯', '🎲', '🎮', '🎸', '🎹', '🎺', '🎻', '🎼', '🎤', '🎧', '🎨', '🎭', '🎪', '🎟️', '🎫', '🎬',
+    '🏠', '🏡', '🏢', '🏣', '🏤', '🏥', '🏦', '🏨', '🏩', '🏪', '🏫', '🏬', '🏭', '🏯', '🏰', '💒',
+    '⛪', '🕌', '🕍', '🛕', '⛩️', '🕋', '⛲', '⛺', '🌁', '🌃', '🏙️', '🌄', '🌅', '🌆', '🌇', '🌉',
+    '🎪', '🎟️', '🎫', '🎬', '🎭', '🎨', '🎤', '🎧', '🎼', '🎹', '🎸', '🎺', '🎻', '🎲', '🎯', '🎮',
+    '⚽', '🏀', '🏈', '⚾', '🥎', '🎾', '🏐', '🏉', '🥏', '🎱', '🪀', '🏓', '🏸', '🏒', '🏑', '🥍',
+    '🏏', '🥅', '⛳', '🪁', '🏹', '🎣', '🤿', '🥊', '🥋', '🎽', '🛹', '🛷️', '⛸️', '🥌', '🎿', '⛷️',
+    '🏂', '🏋️', '🤼', '🤸', '⛹️', '🤺', '🤾', '🏊', '🏄', '🏊', '🚣', '🏊', '⛹️', '🏋️', '🚴', '🚵'
+  ];
+
   // Add loading states for note actions
   const [updatingNotes, setUpdatingNotes] = useState<Set<string>>(new Set());
   // Add loading state for moving notes
@@ -246,7 +264,7 @@ export default function NotesDashboard() {
 
   useEffect(() => {
     filterAndSortNotes();
-  }, [notes, searchQuery, selectedFolderId, selectedTags, noteFilter, sortBy, sortOrder]);
+  }, [notes, searchQuery, selectedFolderId, selectedTag, noteFilter, sortBy, sortOrder]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -419,22 +437,26 @@ export default function NotesDashboard() {
       );
     }
 
-    // Filter by folder
-    if (selectedFolderId !== 'all') {
-      filtered = filtered.filter(note => note.folderId === selectedFolderId);
-    }
-
-    // Filter by tags
-    filtered = filterNotesByTags(filtered);
-
-    // Filter by noteFilter
+    // Filter by noteFilter first (this is the primary filter)
     if (noteFilter === 'archived') {
+      // Show only archived notes, regardless of folder
       filtered = filtered.filter(note => note.isArchived);
     } else if (noteFilter === 'starred') {
-      filtered = filtered.filter(note => note.isStarred && !note.isArchived);
+      // Show only starred notes, regardless of folder and archive status
+      filtered = filtered.filter(note => note.isStarred);
     } else {
       // 'all' - show only non-archived notes
       filtered = filtered.filter(note => !note.isArchived);
+    }
+
+    // Filter by folder (only apply if not in archived/starred view)
+    if (selectedFolderId !== 'all' && noteFilter === 'all') {
+      filtered = filtered.filter(note => note.folderId === selectedFolderId);
+    }
+
+    // Filter by tags (only apply if not in archived/starred view)
+    if (selectedTag && noteFilter === 'all') {
+      filtered = filtered.filter(note => note.tags.includes(selectedTag));
     }
 
     // Sort notes
@@ -871,8 +893,8 @@ export default function NotesDashboard() {
         },
         body: JSON.stringify({
           name: newFolderName.trim(),
-          color: 'blue',
-          emoji: '📁'
+          color: newFolderColor,
+          emoji: newFolderEmoji
         }),
       });
 
@@ -888,6 +910,8 @@ export default function NotesDashboard() {
 
       setFolders(prev => [...prev, newFolder]);
       setNewFolderName('');
+      setNewFolderEmoji('📁');
+      setNewFolderColor('blue');
       setShowCreateFolder(false);
       setShowSuccess(true);
       setSuccessMessage(`Folder "${newFolder.name}" created successfully!`);
@@ -1059,6 +1083,8 @@ export default function NotesDashboard() {
 
   const handleFolderClick = (folderId: string) => {
     setSelectedFolderId(folderId);
+    setNoteFilter('all'); // Reset to 'all' view when clicking folders
+    setSelectedTag(null); // Clear tag filter when switching folders
     // Clear any selected note when switching folders
     setSelectedNote(null);
     setIsEditing(false);
@@ -1069,7 +1095,7 @@ export default function NotesDashboard() {
     const stats = getNoteStats();
 
     return (
-      <div className={`bg-gray-50 border-r border-gray-200 transition-all duration-300 ${
+      <div className={`bg-gray-50 border-r border-gray-200 transition-all duration-300 h-screen overflow-y-auto ${
         sidebarCollapsed ? 'w-16' : 'w-80'
       }`}>
         {/* Sidebar Header */}
@@ -1091,23 +1117,6 @@ export default function NotesDashboard() {
           </div>
         </div>
 
-        {/* Search */}
-        {!sidebarCollapsed && (
-          <div className="p-4 border-b border-gray-200">
-          <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-              <input
-                ref={searchRef}
-                type="text"
-                placeholder="Search notes..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-            </div>
-          </div>
-        )}
-
         {/* Folders */}
         {!sidebarCollapsed && (
           <div className="p-4 border-b border-gray-200">
@@ -1123,9 +1132,13 @@ export default function NotesDashboard() {
               </div>
               <div className="space-y-1 mt-2">
                 <button
-                  onClick={() => setSelectedFolderId('all')}
+                  onClick={() => {
+                    setSelectedFolderId('all');
+                    setNoteFilter('all');
+                    setSelectedTag(null);
+                  }}
                   className={`w-full flex items-center space-x-2 px-2 py-1.5 rounded text-sm transition-colors ${
-                    selectedFolderId === 'all' ? 'bg-blue-100 text-blue-700' : 'hover:bg-gray-100 text-gray-700'
+                    selectedFolderId === 'all' && noteFilter === 'all' && !selectedTag ? 'bg-blue-100 text-blue-700' : 'hover:bg-gray-100 text-gray-700'
                   }`}
                 >
                   <Folder className="w-4 h-4" />
@@ -1143,6 +1156,8 @@ export default function NotesDashboard() {
                         draggedFolderId === folder.id ? 'opacity-50' : ''
                       } ${
                         dragOverFolderId === folder.id ? 'bg-blue-50 border-l-2 border-blue-500' : ''
+                      } ${
+                        editingFolder === folder.id ? 'z-[9998]' : ''
                       }`}
                       draggable
                       onDragStart={(e) => handleDragStart(e, folder.id)}
@@ -1152,17 +1167,14 @@ export default function NotesDashboard() {
                       onDragEnd={handleDragEnd}
                     >
                       <button
-                        onClick={() => setSelectedFolderId(folder.id)}
+                        onClick={() => handleFolderClick(folder.id)}
                         className={`w-full flex items-center space-x-2 px-2 py-1.5 rounded text-sm transition-colors ${
-                          selectedFolderId === folder.id ? `${folderColorInfo.bg} ${folderColorInfo.text} border-l-2 ${folderColorInfo.border}` : 'hover:bg-gray-100 text-gray-700'
+                          selectedFolderId === folder.id && noteFilter === 'all' ? `${folderColorInfo.bg} ${folderColorInfo.text} border-l-2 ${folderColorInfo.border}` : 'hover:bg-gray-100 text-gray-700'
                         }`}
                       >
                         <span className="text-base cursor-move">⋮⋮</span>
                         <span className="text-base">{folder.emoji}</span>
                         <span className="flex-1 text-left truncate">{folder.name}</span>
-                        <span className="text-xs text-gray-400">
-                          ({notes.filter(note => note.folderId === folder.id).length})
-                        </span>
                         <span className="flex-shrink-0 w-8"></span>
                       </button>
                       
@@ -1182,7 +1194,7 @@ export default function NotesDashboard() {
                           </button>
                           
                           {editingFolder === folder.id && (
-                            <div className="absolute right-0 top-6 bg-white !bg-white bg-opacity-100 opacity-100 !opacity-100 backdrop-filter-none !backdrop-filter-none border border-gray-200 rounded-lg shadow-xl z-50 py-1 w-56">
+                            <div className="absolute right-0 top-6 bg-white !bg-white bg-opacity-100 opacity-100 !opacity-100 backdrop-filter-none !backdrop-filter-none border border-gray-200 rounded-lg shadow-xl z-[9999] py-1 w-56">
                               <div className="p-3 bg-white !bg-white bg-opacity-100 opacity-100 !opacity-100 backdrop-filter-none !backdrop-filter-none">
                                 <div className="mb-3">
                                   <label className="block text-xs font-medium text-gray-700 mb-1">Folder Name</label>
@@ -1271,6 +1283,7 @@ export default function NotesDashboard() {
                 <button
                   onClick={() => {
                     setNoteFilter(noteFilter === 'archived' ? 'all' : 'archived');
+                    setSelectedTag(null);
                   }}
                   className={`w-full flex items-center space-x-2 px-2 py-1.5 rounded text-sm transition-colors ${
                     noteFilter === 'archived' ? 'bg-blue-100 text-blue-700' : 'hover:bg-gray-100 text-gray-700'
@@ -1283,6 +1296,7 @@ export default function NotesDashboard() {
                 <button
                   onClick={() => {
                     setNoteFilter(noteFilter === 'starred' ? 'all' : 'starred');
+                    setSelectedTag(null);
                   }}
                   className={`w-full flex items-center space-x-2 px-2 py-1.5 rounded text-sm transition-colors ${
                     noteFilter === 'starred' ? 'bg-blue-100 text-blue-700' : 'hover:bg-gray-100 text-gray-700'
@@ -1303,7 +1317,7 @@ export default function NotesDashboard() {
             <div className="space-y-1">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Tags</span>
-                {selectedTags.size > 0 && (
+                {selectedTag && (
                   <button
                     onClick={clearTagFilters}
                     className="text-xs text-blue-500 hover:text-blue-600"
@@ -1315,7 +1329,7 @@ export default function NotesDashboard() {
               <div className="space-y-1 mt-2">
                 {getAllTags().map((tag) => {
                   const count = getTagCounts()[tag];
-                  const isSelected = selectedTags.has(tag);
+                  const isSelected = selectedTag === tag;
                   return (
                     <button
                       key={tag}
@@ -1340,44 +1354,6 @@ export default function NotesDashboard() {
           </div>
         )}
 
-        {/* Keyboard Shortcuts Help */}
-        {!sidebarCollapsed && (
-          <div className="p-4">
-            <div className="space-y-1">
-              <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Keyboard Shortcuts</span>
-              <div className="space-y-1 mt-2 text-xs text-gray-600">
-                <div className="flex justify-between">
-                  <span>New Note:</span>
-                  <kbd className="px-1 py-0.5 bg-gray-100 rounded text-xs">Ctrl+N</kbd>
-                </div>
-                <div className="flex justify-between">
-                  <span>Save Note:</span>
-                  <kbd className="px-1 py-0.5 bg-gray-100 rounded text-xs">Ctrl+S</kbd>
-                </div>
-                <div className="flex justify-between">
-                  <span>Pin/Unpin:</span>
-                  <kbd className="px-1 py-0.5 bg-gray-100 rounded text-xs">Ctrl+P</kbd>
-                </div>
-                <div className="flex justify-between">
-                  <span>Star/Unstar:</span>
-                  <kbd className="px-1 py-0.5 bg-gray-100 rounded text-xs">Ctrl+Shift+S</kbd>
-                </div>
-                <div className="flex justify-between">
-                  <span>Archive:</span>
-                  <kbd className="px-1 py-0.5 bg-gray-100 rounded text-xs">Ctrl+Shift+A</kbd>
-                </div>
-                <div className="flex justify-between">
-                  <span>Delete:</span>
-                  <kbd className="px-1 py-0.5 bg-gray-100 rounded text-xs">Delete</kbd>
-                </div>
-                <div className="flex justify-between">
-                  <span>Move to folder:</span>
-                  <kbd className="px-1 py-0.5 bg-gray-100 rounded text-xs">Ctrl+M</kbd>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
     );
   };
@@ -1619,7 +1595,7 @@ export default function NotesDashboard() {
   };
 
   const renderNotesGrid = () => {
-    if (filteredNotes.length === 0 && selectedFolderId === 'all') {
+    if (filteredNotes.length === 0 && noteFilter === 'all' && selectedFolderId === 'all') {
       return (
         <div className="text-center py-16">
           <Type className="w-16 h-16 text-gray-300 mx-auto mb-4" />
@@ -1635,31 +1611,61 @@ export default function NotesDashboard() {
       );
     }
 
+    if (filteredNotes.length === 0) {
+      return (
+        <div className="text-center py-16">
+          <Type className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+          <h2 className="text-xl font-medium text-gray-600 mb-2">
+            {noteFilter === 'archived' ? 'No Archived Notes' : 
+             noteFilter === 'starred' ? 'No Starred Notes' :
+             selectedTag ? `No Notes tagged "${selectedTag}"` :
+             selectedFolderId === 'all' ? 'No Notes Found' : 
+             `No Notes in ${folders.find(f => f.id === selectedFolderId)?.name || 'this folder'}`}
+          </h2>
+          <p className="text-gray-500 mb-6">
+            {noteFilter === 'archived' ? 'Notes you archive will appear here' : 
+             noteFilter === 'starred' ? 'Notes you star will appear here' :
+             selectedTag ? 'Try adding this tag to some notes' :
+             selectedFolderId === 'all' ? 'Try adjusting your search or filters' :
+             `Create your first note in ${folders.find(f => f.id === selectedFolderId)?.name || 'this folder'}`}
+          </p>
+          {noteFilter === 'all' && !selectedTag && (
+            <button
+              onClick={() => selectedFolderId === 'all' ? handleCreateNote() : handleCreateNoteInFolder(selectedFolderId)}
+              className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+            >
+              Create New Note
+            </button>
+          )}
+        </div>
+      );
+    }
+
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 p-6">
-        {/* Create New Note Tile - show in all views */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className={`border-2 border-dashed rounded-lg p-4 cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-all group note-tile ${
-            selectedFolderId !== 'all' 
-              ? `${getColorInfo(folders.find(f => f.id === selectedFolderId)?.color || 'blue').border} hover:${getColorInfo(folders.find(f => f.id === selectedFolderId)?.color || 'blue').bg}` 
-              : 'border-gray-300'
-          }`}
-          onClick={() => selectedFolderId === 'all' ? handleCreateNote() : handleCreateNoteInFolder(selectedFolderId)}
-        >
-          <div className="note-tile-content">
-            <div className="flex flex-col items-center justify-center h-full text-center">
-              <Plus className="w-8 h-8 text-gray-400 group-hover:text-blue-500 mb-2" />
-              <h3 className="text-sm font-medium text-gray-600 group-hover:text-blue-700">
-                Create New Note
-              </h3>
-              <p className="text-xs text-gray-500 mt-1">
-                {selectedFolderId === 'all' ? 'unassigned' : `in ${selectedFolderId}`}
-              </p>
+        {/* Create New Note Tile - show only in 'all' view without tag filtering */}
+        {noteFilter === 'all' && !selectedTag && (
+          <div
+            className={`border-2 border-dashed rounded-lg p-4 cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-all group note-tile ${
+              selectedFolderId !== 'all' 
+                ? `${getColorInfo(folders.find(f => f.id === selectedFolderId)?.color || 'blue').border} hover:${getColorInfo(folders.find(f => f.id === selectedFolderId)?.color || 'blue').bg}` 
+                : 'border-gray-300'
+            }`}
+            onClick={() => selectedFolderId === 'all' ? handleCreateNote() : handleCreateNoteInFolder(selectedFolderId)}
+          >
+            <div className="note-tile-content">
+              <div className="flex flex-col items-center justify-center h-full text-center">
+                <Plus className="w-8 h-8 text-gray-400 group-hover:text-blue-500 mb-2" />
+                <h3 className="text-sm font-medium text-gray-600 group-hover:text-blue-700">
+                  Create New Note
+                </h3>
+                <p className="text-xs text-gray-500 mt-1">
+                  {selectedFolderId === 'all' ? 'unassigned' : `in ${folders.find(f => f.id === selectedFolderId)?.name || 'unknown folder'}`}
+                </p>
+              </div>
             </div>
           </div>
-        </motion.div>
+        )}
 
         {/* Existing Notes */}
         {filteredNotes.map((note) => {
@@ -1668,10 +1674,8 @@ export default function NotesDashboard() {
           const categoryInfo = getCategoryInfo(note.folderId || '');
           
           return (
-            <motion.div
+            <div
               key={note.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
               className={`${colorInfo.bg} ${colorInfo.border} border rounded-lg p-4 cursor-pointer hover:shadow-md transition-all group relative note-tile ${
                 isNoteUpdating(note.id) ? 'opacity-75 pointer-events-none' : ''
               }`}
@@ -1738,11 +1742,6 @@ export default function NotesDashboard() {
                             )}
                             <span>Move to Folder</span>
                             <ChevronRight className="w-3 h-3 ml-auto" />
-                            {note.folderName && (
-                              <span className="text-xs text-gray-500 ml-2">
-                                ({note.folderName})
-                              </span>
-                            )}
                           </button>
                           
                           {openFolderSelectorId === note.id && (
@@ -1914,7 +1913,7 @@ export default function NotesDashboard() {
                   </div>
                 </div>
               </div>
-            </motion.div>
+            </div>
           );
         })}
       </div>
@@ -2106,18 +2105,19 @@ export default function NotesDashboard() {
 
   // Tag management functions
   const toggleTagFilter = (tag: string) => {
-    setSelectedTags(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(tag)) {
-        newSet.delete(tag);
-      } else {
-        newSet.add(tag);
-      }
-      return newSet;
-    });
+    if (selectedTag === tag) {
+      // If clicking the same tag, clear the filter
+      setSelectedTag(null);
+    } else {
+      // Set this tag as the current filter and clear other filters
+      setSelectedTag(tag);
+      setNoteFilter('all'); // Clear starred/archived filters
+      setSelectedFolderId('all'); // Clear folder filter
+    }
   };
 
   const clearTagFilters = () => {
+    setSelectedTag(null);
     setSelectedTags(new Set());
   };
 
@@ -2194,11 +2194,9 @@ export default function NotesDashboard() {
     try {
       setError(null);
       
+      // Only send folderId to the API - let the API handle the folder relationship
       const updates = {
-        folderId: folderId || undefined,
-        folderName: targetFolder?.name || undefined,
-        folderColor: targetFolder?.color || undefined,
-        folderEmoji: targetFolder?.emoji || undefined,
+        folderId: folderId || undefined, // Use undefined for unassigned
       };
 
       const updatedNote = await updateNote(selectedNote.id, updates);
@@ -2238,11 +2236,9 @@ export default function NotesDashboard() {
       setError(null);
       setMovingNotes(prev => new Set(prev).add(noteId));
       
+      // Only send folderId to the API - let the API handle the folder relationship
       const updates = {
-        folderId: folderId || undefined,
-        folderName: targetFolder?.name || undefined,
-        folderColor: targetFolder?.color || undefined,
-        folderEmoji: targetFolder?.emoji || undefined,
+        folderId: folderId || undefined, // Use undefined for unassigned
       };
       
       console.log('Updates to apply:', updates);
@@ -2274,6 +2270,15 @@ export default function NotesDashboard() {
       });
     }
   };
+
+  // 1. Set sidebarCollapsed to true by default on small screens
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      if (window.innerWidth < 768) {
+        setSidebarCollapsed(true);
+      }
+    }
+  }, []);
 
   if (isLoading) {
     return (
@@ -2345,37 +2350,105 @@ export default function NotesDashboard() {
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-white rounded-lg p-6 w-full max-w-md mx-4"
+              className="bg-white rounded-lg p-6 w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="flex items-center space-x-2 mb-4">
+              <div className="flex items-center space-x-2 mb-6">
                 <FolderPlus className="w-5 h-5 text-blue-500" />
                 <h3 className="text-lg font-semibold text-gray-900">Create New Folder</h3>
-      </div>
+              </div>
 
-              <input
-                type="text"
-                placeholder="Folder name..."
-                value={newFolderName}
-                onChange={(e) => setNewFolderName(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 placeholder-gray-500"
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !isCreatingFolder) {
-                    handleCreateFolder();
-                  }
-                }}
-                disabled={isCreatingFolder}
-              />
+              {/* Folder Name Input */}
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Folder Name
+                </label>
+                <input
+                  type="text"
+                  placeholder="Enter folder name..."
+                  value={newFolderName}
+                  onChange={(e) => setNewFolderName(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 placeholder-gray-500"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !isCreatingFolder && newFolderName.trim()) {
+                      handleCreateFolder();
+                    }
+                  }}
+                  disabled={isCreatingFolder}
+                  autoFocus
+                />
+              </div>
+
+              {/* Emoji Picker */}
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-700 mb-3">
+                  Choose Emoji
+                </label>
+                <div className="grid grid-cols-8 gap-2 max-h-32 overflow-y-auto border border-gray-200 rounded-lg p-3">
+                  {folderEmojiOptions.map((emoji, index) => (
+                    <button
+                      key={index}
+                      onClick={() => setNewFolderEmoji(emoji)}
+                      className={`w-8 h-8 flex items-center justify-center text-lg rounded hover:bg-gray-100 transition-colors ${
+                        newFolderEmoji === emoji ? 'bg-blue-100 border-2 border-blue-300' : ''
+                      }`}
+                      title={`Select ${emoji}`}
+                    >
+                      {emoji}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Color Picker */}
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-700 mb-3">
+                  Choose Color
+                </label>
+                <div className="grid grid-cols-6 gap-2">
+                  {colorOptions.map((color) => (
+                    <button
+                      key={color.name}
+                      onClick={() => setNewFolderColor(color.name)}
+                      className={`w-10 h-10 rounded-lg border-2 transition-all ${
+                        newFolderColor === color.name 
+                          ? 'border-gray-600 scale-110' 
+                          : 'border-gray-200 hover:border-gray-400'
+                      } ${color.bg}`}
+                      title={color.name}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              {/* Preview */}
+              <div className="mb-6 p-3 bg-gray-50 rounded-lg">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Preview
+                </label>
+                <div className={`flex items-center space-x-2 px-3 py-2 rounded-lg ${getColorInfo(newFolderColor).bg} ${getColorInfo(newFolderColor).border} border`}>
+                  <span className="text-lg">{newFolderEmoji}</span>
+                  <span className={`font-medium ${getColorInfo(newFolderColor).text}`}>
+                    {newFolderName || 'Folder Name'}
+                  </span>
+                </div>
+              </div>
               
-              <div className="flex items-center justify-end space-x-3 mt-6">
-              <button
-                  onClick={() => setShowCreateFolder(false)}
+              {/* Action Buttons */}
+              <div className="flex items-center justify-end space-x-3">
+                <button
+                  onClick={() => {
+                    setShowCreateFolder(false);
+                    setNewFolderName('');
+                    setNewFolderEmoji('📁');
+                    setNewFolderColor('blue');
+                  }}
                   disabled={isCreatingFolder}
                   className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors disabled:opacity-50"
                 >
                   Cancel
-              </button>
-              <button
+                </button>
+                <button
                   onClick={handleCreateFolder}
                   disabled={!newFolderName.trim() || isCreatingFolder}
                   className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
@@ -2383,35 +2456,46 @@ export default function NotesDashboard() {
                   {isCreatingFolder && (
                     <div className="animate-spin rounded-full h-4 w-4 border-b border-white"></div>
                   )}
-                  <span>{isCreatingFolder ? 'Creating...' : 'Create'}</span>
-              </button>
-            </div>
+                  <span>{isCreatingFolder ? 'Creating...' : 'Create Folder'}</span>
+                </button>
+              </div>
             </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
       
       {/* Main Layout */}
-      <div className="flex h-screen pt-16">
+      <div className="relative flex min-h-screen h-screen pt-16">
         {/* Sidebar */}
-        {renderSidebar()}
-
+        <div className={`hidden md:block transition-all duration-300 ${sidebarCollapsed ? 'w-0' : 'w-80'}`}>{!sidebarCollapsed && renderSidebar()}</div>
+        {/* On mobile, show sidebar as overlay if open */}
+        { !sidebarCollapsed && (
+          <div className="fixed inset-0 z-50 bg-black bg-opacity-40 md:hidden" onClick={() => setSidebarCollapsed(true)}>
+            <div className="absolute left-0 top-0 bottom-0 w-64 bg-gray-50 border-r border-gray-200 shadow-lg" onClick={e => e.stopPropagation()}>
+              {renderSidebar()}
+            </div>
+          </div>
+        )}
         {/* Main Content */}
-        <div className="flex-1 flex flex-col overflow-hidden">
+        <div className="flex-1 flex flex-col overflow-hidden min-h-screen h-full">
           {selectedNote ? (
             renderNoteEditor()
           ) : (
-            <div className="flex-1 overflow-y-auto">
+            <div className="flex-1 overflow-y-auto bg-white p-8">
               {/* Header */}
-              <div className="border-b border-gray-200 p-4">
+              <div className="p-4">
                 <div className="flex items-center justify-between">
                   <div>
                     <h1 className="text-2xl font-semibold text-gray-900">
-                      {selectedFolderId === 'all' ? 'All Notes' : folders.find(f => f.id === selectedFolderId)?.name || 'Unknown Folder'}
+                      {noteFilter === 'archived' ? 'Archived Notes' : 
+                       noteFilter === 'starred' ? 'Starred Notes' :
+                       selectedTag ? `Notes tagged "${selectedTag}"` :
+                       selectedFolderId === 'all' ? 'All Notes' : 
+                       folders.find(f => f.id === selectedFolderId)?.name || 'Unknown Folder'}
                     </h1>
                     <p className="text-gray-600">
                       {filteredNotes.length} {filteredNotes.length === 1 ? 'note' : 'notes'}
-                      {selectedFolderId !== 'all' && ` in ${folders.find(f => f.id === selectedFolderId)?.name}`}
+                      {noteFilter === 'all' && selectedFolderId !== 'all' && !selectedTag && ` in ${folders.find(f => f.id === selectedFolderId)?.name}`}
                     </p>
                   </div>
                   
@@ -2432,6 +2516,16 @@ export default function NotesDashboard() {
             </div>
           )}
         </div>
+        {/* Floating open sidebar button on mobile */}
+        {sidebarCollapsed && (
+          <button
+            className="fixed bottom-6 left-6 z-50 bg-blue-500 text-white rounded-full shadow-lg p-4 flex items-center justify-center"
+            onClick={() => setSidebarCollapsed(false)}
+            aria-label="Open sidebar"
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" /></svg>
+          </button>
+        )}
       </div>
       
       {/* Confirmation Dialog */}

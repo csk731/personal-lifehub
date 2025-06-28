@@ -3,7 +3,7 @@ CREATE TABLE IF NOT EXISTS public.folders (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
     user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
     name TEXT NOT NULL,
-    color TEXT DEFAULT 'blue' CHECK (color IN ('blue', 'green', 'yellow', 'pink', 'purple', 'gray')),
+    color TEXT DEFAULT 'blue' CHECK (color IN ('blue', 'green', 'purple', 'red', 'yellow', 'pink', 'indigo', 'gray', 'orange', 'teal', 'cyan', 'lime')),
     icon TEXT DEFAULT '📁',
     emoji TEXT DEFAULT '📁',
     is_default BOOLEAN DEFAULT FALSE,

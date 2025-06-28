@@ -11,6 +11,9 @@ export async function PUT(
   { params }: { params: { id: string } }
 ) {
   try {
+    console.log('=== FOLDER UPDATE API CALLED ===');
+    console.log('Folder ID:', params.id);
+    
     // Extract token from request headers
     const authHeader = request.headers.get('authorization');
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -27,17 +30,28 @@ export async function PUT(
 
     const body = await request.json();
     const { name, color, icon, emoji, sort_order } = body;
+    
+    console.log('Request body:', body);
+    console.log('Color received:', color, 'Type:', typeof color);
 
     if (name !== undefined && (!name || name.trim() === '')) {
       return NextResponse.json({ error: 'Folder name cannot be empty' }, { status: 400 });
     }
 
-    const allowedColors = ['default', 'blue', 'green', 'yellow', 'pink', 'purple'];
+    // Updated color validation to match the main folders route
+    const allowedColors = [
+      'default', 'blue', 'green', 'yellow', 'pink', 'purple', 
+      'red', 'lime', 'cyan', 'teal', 'orange', 'gray', 'indigo'
+    ];
+    
     let safeColor = color;
     if (!color || typeof color !== 'string' || !allowedColors.includes(color)) {
       console.warn('Invalid or missing color received for folder update:', color, 'Falling back to default.');
+      console.warn('Allowed colors:', allowedColors);
       safeColor = 'default';
     }
+    
+    console.log('Final color to be used:', safeColor);
 
     const { data: folder, error } = await supabase
       .from('folders')
@@ -55,10 +69,11 @@ export async function PUT(
       .single();
 
     if (error) {
-      console.error('Error updating folder:', error);
+      console.error('Database error updating folder:', error);
       return NextResponse.json({ error: 'Failed to update folder' }, { status: 500 });
     }
 
+    console.log('Folder updated successfully:', folder);
     return NextResponse.json(folder);
   } catch (error) {
     console.error('Error in PUT /api/folders/[id]:', error);

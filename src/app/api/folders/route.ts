@@ -64,8 +64,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Folder name is required' }, { status: 400 });
     }
 
-    const allowedColors = ['default', 'blue', 'green', 'yellow', 'pink', 'purple'];
-    const safeColor = allowedColors.includes(color) ? color : 'default';
+    // Define all supported colors - all colors now supported after database migration
+    const allowedColors = ['blue', 'green', 'purple', 'red', 'yellow', 'pink', 'indigo', 'gray', 'orange', 'teal', 'cyan', 'lime'];
+    const safeColor = allowedColors.includes(color) ? color : 'blue';
+
+    console.log('=== FOLDER CREATION DEBUG ===');
+    console.log('Request body:', body);
+    console.log('Requested color:', color);
+    console.log('Safe color:', safeColor);
+    console.log('Is color in allowed list?', allowedColors.includes(color));
+    console.log('=============================');
 
     // Get the highest sort_order to place new folder at the end
     const { data: maxSortResult } = await supabase
@@ -78,6 +86,15 @@ export async function POST(request: NextRequest) {
     const nextSortOrder = maxSortResult && maxSortResult.length > 0 
       ? (maxSortResult[0].sort_order || 0) + 1 
       : 0;
+
+    console.log('About to insert folder with:', {
+      user_id: user.id,
+      name: name.trim(),
+      color: safeColor,
+      icon: icon || '📁',
+      emoji: emoji || '📁',
+      sort_order: nextSortOrder,
+    });
 
     const { data: folder, error } = await supabase
       .from('folders')
@@ -93,9 +110,24 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (error) {
+      console.error('=== FOLDER CREATION ERROR ===');
       console.error('Error creating folder:', error);
-      return NextResponse.json({ error: 'Failed to create folder' }, { status: 500 });
+      console.error('Error details:', {
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        code: error.code
+      });
+      console.error('=============================');
+      return NextResponse.json({ 
+        error: 'Failed to create folder',
+        details: error.message 
+      }, { status: 500 });
     }
+
+    console.log('=== FOLDER CREATION SUCCESS ===');
+    console.log('Created folder:', folder);
+    console.log('=============================');
 
     return NextResponse.json(folder);
   } catch (error) {
