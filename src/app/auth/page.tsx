@@ -3,9 +3,10 @@
 import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
-import { Eye, EyeOff, Mail, Lock, User, ArrowLeft } from 'lucide-react';
+import { Eye, EyeOff, Mail, Lock, User, ArrowLeft, Home } from 'lucide-react';
 import { validation, handleAuthError } from '@/lib/utils';
 import AuthGuard from '@/components/auth/AuthGuard';
+import Link from 'next/link';
 
 type AuthMode = 'signin' | 'signup' | 'forgot-password' | 'reset-password';
 
@@ -71,6 +72,9 @@ function AuthPageContent() {
       const { data, error } = await supabase.auth.signUp({
         email: state.email,
         password: state.password,
+        options: {
+          emailRedirectTo: `${process.env.NEXT_PUBLIC_APP_URL || 'https://lifehub.vercel.app'}/auth`,
+        },
       });
 
       if (error) {
@@ -211,7 +215,7 @@ function AuthPageContent() {
                   type="email"
                   value={state.email}
                   onChange={(e) => updateState({ email: e.target.value })}
-                  className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 placeholder-gray-500"
                   placeholder="Enter your email"
                   required
                 />
@@ -228,7 +232,7 @@ function AuthPageContent() {
                   type={state.showPassword ? 'text' : 'password'}
                   value={state.password}
                   onChange={(e) => updateState({ password: e.target.value })}
-                  className="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 placeholder-gray-500"
                   placeholder="Enter your password"
                   required
                 />
@@ -286,7 +290,7 @@ function AuthPageContent() {
                   type="email"
                   value={state.email}
                   onChange={(e) => updateState({ email: e.target.value })}
-                  className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 placeholder-gray-500"
                   placeholder="Enter your email"
                   required
                 />
@@ -303,7 +307,7 @@ function AuthPageContent() {
                   type={state.showPassword ? 'text' : 'password'}
                   value={state.password}
                   onChange={(e) => updateState({ password: e.target.value })}
-                  className="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 placeholder-gray-500"
                   placeholder="Create a password"
                   required
                 />
@@ -330,7 +334,7 @@ function AuthPageContent() {
                   type={state.showConfirmPassword ? 'text' : 'password'}
                   value={state.confirmPassword}
                   onChange={(e) => updateState({ confirmPassword: e.target.value })}
-                  className="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 placeholder-gray-500"
                   placeholder="Confirm your password"
                   required
                 />
@@ -378,7 +382,7 @@ function AuthPageContent() {
                   type="email"
                   value={state.email}
                   onChange={(e) => updateState({ email: e.target.value })}
-                  className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 placeholder-gray-500"
                   placeholder="Enter your email"
                   required
                 />
@@ -419,7 +423,7 @@ function AuthPageContent() {
                   type={state.showPassword ? 'text' : 'password'}
                   value={state.password}
                   onChange={(e) => updateState({ password: e.target.value })}
-                  className="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 placeholder-gray-500"
                   placeholder="Enter new password"
                   required
                 />
@@ -446,7 +450,7 @@ function AuthPageContent() {
                   type={state.showConfirmPassword ? 'text' : 'password'}
                   value={state.confirmPassword}
                   onChange={(e) => updateState({ confirmPassword: e.target.value })}
-                  className="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 placeholder-gray-500"
                   placeholder="Confirm new password"
                   required
                 />
@@ -500,6 +504,15 @@ function AuthPageContent() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+      {/* Back to Home Button */}
+      <Link 
+        href="/" 
+        className="absolute top-6 left-6 flex items-center space-x-2 text-gray-600 hover:text-gray-900 transition-colors duration-200 font-medium"
+      >
+        <Home className="w-4 h-4" />
+        <span>Back to Home</span>
+      </Link>
+      
       <div className="max-w-md w-full bg-white rounded-xl shadow-lg p-8">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">{getTitle()}</h1>

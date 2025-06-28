@@ -21,150 +21,444 @@ export default function HomePage() {
   }, [router]);
 
   if (isLoggedIn === null) {
-    return null; // or a loading spinner
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-black">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div>
+      </div>
+    );
   }
 
-  // If logged in, don't render the landing page (redirect will happen)
   if (isLoggedIn) {
     return null;
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
-      <TopBar isLoggedIn={false} />
-      <main className="flex-1 flex flex-col items-center justify-center px-4 pt-32 pb-16">
-        {/* Hero Section */}
-        <section className="relative text-center max-w-2xl mx-auto mb-16">
-          <h1 className="text-5xl font-extrabold text-gray-900 mb-4 drop-shadow-lg">
-            Organize Your Life, Effortlessly
-          </h1>
-          <p className="text-xl text-gray-700 mb-8">
-            LifeHub brings all your tasks, moods, and finances into one beautiful dashboard. Experience clarity, focus, and peace of mind—every day.
-          </p>
-          {/* Unique SVG Illustration */}
-          <div className="flex justify-center mb-8">
-            <svg width="320" height="120" viewBox="0 0 320 120" fill="none" xmlns="http://www.w3.org/2000/svg" className="drop-shadow-xl animate-pulse-slow">
-              <rect x="10" y="20" width="300" height="80" rx="20" fill="#e0e7ff" />
-              <rect x="30" y="40" width="60" height="40" rx="10" fill="#a5b4fc" />
-              <rect x="110" y="40" width="60" height="40" rx="10" fill="#fca5a5" />
-              <rect x="190" y="40" width="60" height="40" rx="10" fill="#6ee7b7" />
-              <rect x="270" y="40" width="20" height="40" rx="6" fill="#fcd34d" />
-              <circle cx="60" cy="60" r="8" fill="#6366f1" />
-              <circle cx="140" cy="60" r="8" fill="#ef4444" />
-              <circle cx="220" cy="60" r="8" fill="#10b981" />
-            </svg>
+    <div className="min-h-screen bg-black text-white">
+      {/* Navigation */}
+      <nav className="fixed top-0 left-0 right-0 z-50 bg-black/80 backdrop-blur-xl">
+        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+          <div className="flex items-center select-none">
+            <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center shadow-sm">
+              <svg 
+                viewBox="0 0 24 24" 
+                className="w-5 h-5 text-white"
+                fill="currentColor"
+              >
+                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+              </svg>
+            </div>
+            <span className="ml-3 text-xl font-medium text-white tracking-tight">
+              LifeHub
+            </span>
           </div>
-          {/* Animated Dashboard Preview (placeholder) */}
-          <div className="flex justify-center mb-8">
-            <div className="w-full max-w-xl rounded-2xl shadow-2xl bg-white/80 p-6 animate-fade-in">
-              <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
-                <div className="flex-1">
-                  <div className="h-4 w-32 bg-blue-200 rounded mb-2 animate-pulse" />
-                  <div className="h-3 w-48 bg-blue-100 rounded mb-4 animate-pulse" />
-                  <div className="h-3 w-40 bg-blue-100 rounded mb-2 animate-pulse" />
-                  <div className="h-3 w-36 bg-blue-100 rounded mb-2 animate-pulse" />
+          <div className="hidden md:flex items-center space-x-8">
+            <a href="#features" className="text-white/70 hover:text-white transition-colors text-sm">Features</a>
+            <a href="#how-it-works" className="text-white/70 hover:text-white transition-colors text-sm">How it Works</a>
+          </div>
+          <Link 
+            href="/auth" 
+            className="px-6 py-2 bg-white text-black rounded-full font-medium hover:bg-white/90 transition-colors text-sm"
+          >
+            Sign In
+          </Link>
+        </div>
+      </nav>
+
+      {/* Hero Section - Apple Style */}
+      <section className="relative min-h-screen flex items-center justify-center px-6 pt-20">
+        <div className="text-center max-w-4xl mx-auto">
+          <h1 className="text-8xl md:text-9xl font-bold mb-8 tracking-tight">
+            LifeHub
+          </h1>
+          <p className="text-3xl md:text-4xl font-light mb-12 text-white/80 tracking-wide">
+            Your life. Organized.
+          </p>
+          <p className="text-xl md:text-2xl text-white/60 mb-16 max-w-2xl mx-auto leading-relaxed font-light">
+            The all-in-one dashboard that brings together everything you need to stay productive, mindful, and organized.
+          </p>
+          
+          <Link 
+            href="/auth" 
+            className="inline-block px-12 py-4 bg-white text-black rounded-full text-xl font-medium hover:bg-white/90 transition-all duration-300 hover:scale-105"
+          >
+            Get Started Free
+          </Link>
+        </div>
+      </section>
+
+      {/* Features Section - Apple Style */}
+      <section id="features" className="py-32 px-6">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-32">
+            <h2 className="text-6xl md:text-7xl font-bold mb-8 tracking-tight">
+              Everything you need.
+            </h2>
+            <p className="text-2xl md:text-3xl text-white/60 max-w-3xl mx-auto font-light">
+              Powerful tools designed to help you stay organized, productive, and mindful.
+            </p>
+          </div>
+
+          {/* Large Feature Cards - Apple Style */}
+          <div className="space-y-32">
+            {/* Tasks */}
+            <div className="flex flex-col lg:flex-row items-center gap-16">
+              <div className="flex-1">
+                <h3 className="text-5xl md:text-6xl font-bold mb-6 tracking-tight">
+                  Task Management
+                </h3>
+                <p className="text-2xl text-white/70 mb-8 font-light leading-relaxed">
+                  Create, organize, and track tasks with smart categorization, priorities, and progress tracking. Never miss a deadline again.
+                </p>
+                <ul className="space-y-4 text-xl text-white/60 font-light">
+                  <li>• Smart task categorization</li>
+                  <li>• Priority levels & deadlines</li>
+                  <li>• Progress tracking</li>
+                  <li>• Reminder notifications</li>
+                </ul>
+              </div>
+              <div className="flex-1 flex justify-center">
+                <div className="w-80 h-80 bg-gradient-to-br from-blue-500/20 to-blue-600/20 rounded-3xl border border-blue-500/30 flex items-center justify-center">
+                  <span className="text-8xl">✓</span>
                 </div>
-                <div className="flex flex-col gap-2">
-                  <div className="h-8 w-32 bg-green-200 rounded-lg animate-pulse" />
-                  <div className="h-8 w-32 bg-purple-200 rounded-lg animate-pulse" />
-                  <div className="h-8 w-32 bg-yellow-200 rounded-lg animate-pulse" />
+              </div>
+            </div>
+
+            {/* Mood */}
+            <div className="flex flex-col lg:flex-row-reverse items-center gap-16">
+              <div className="flex-1">
+                <h3 className="text-5xl md:text-6xl font-bold mb-6 tracking-tight">
+                  Mood Tracking
+                </h3>
+                <p className="text-2xl text-white/70 mb-8 font-light leading-relaxed">
+                  Track your daily mood and emotional patterns. Gain insights into your mental well-being with beautiful visualizations.
+                </p>
+                <ul className="space-y-4 text-xl text-white/60 font-light">
+                  <li>• Daily mood logging</li>
+                  <li>• Mood pattern analysis</li>
+                  <li>• Emotional insights</li>
+                  <li>• Wellness recommendations</li>
+                </ul>
+              </div>
+              <div className="flex-1 flex justify-center">
+                <div className="w-80 h-80 bg-gradient-to-br from-purple-500/20 to-purple-600/20 rounded-3xl border border-purple-500/30 flex items-center justify-center">
+                  <span className="text-8xl">😊</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Finance */}
+            <div className="flex flex-col lg:flex-row items-center gap-16">
+              <div className="flex-1">
+                <h3 className="text-5xl md:text-6xl font-bold mb-6 tracking-tight">
+                  Finance Tracking
+                </h3>
+                <p className="text-2xl text-white/70 mb-8 font-light leading-relaxed">
+                  Monitor your income, expenses, and savings with detailed analytics. Take control of your financial future.
+                </p>
+                <ul className="space-y-4 text-xl text-white/60 font-light">
+                  <li>• Income & expense tracking</li>
+                  <li>• Budget management</li>
+                  <li>• Financial analytics</li>
+                  <li>• Savings goals</li>
+                </ul>
+              </div>
+              <div className="flex-1 flex justify-center">
+                <div className="w-80 h-80 bg-gradient-to-br from-green-500/20 to-green-600/20 rounded-3xl border border-green-500/30 flex items-center justify-center">
+                  <span className="text-8xl">💰</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Notes */}
+            <div className="flex flex-col lg:flex-row-reverse items-center gap-16">
+              <div className="flex-1">
+                <h3 className="text-5xl md:text-6xl font-bold mb-6 tracking-tight">
+                  Quick Notes
+                </h3>
+                <p className="text-2xl text-white/70 mb-8 font-light leading-relaxed">
+                  Capture ideas, organize thoughts, and keep important information at your fingertips. Everything you need to stay productive.
+                </p>
+                <ul className="space-y-4 text-xl text-white/60 font-light">
+                  <li>• Rich text notes</li>
+                  <li>• Smart organization</li>
+                  <li>• Quick search</li>
+                  <li>• Categories & tags</li>
+                </ul>
+              </div>
+              <div className="flex-1 flex justify-center">
+                <div className="w-80 h-80 bg-gradient-to-br from-pink-500/20 to-pink-600/20 rounded-3xl border border-pink-500/30 flex items-center justify-center">
+                  <span className="text-8xl">📝</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Calendar */}
+            <div className="flex flex-col lg:flex-row items-center gap-16">
+              <div className="flex-1">
+                <h3 className="text-5xl md:text-6xl font-bold mb-6 tracking-tight">
+                  Calendar & Events
+                </h3>
+                <p className="text-2xl text-white/70 mb-8 font-light leading-relaxed">
+                  Manage your schedule, events, and appointments. Stay on top of your commitments with smart reminders.
+                </p>
+                <ul className="space-y-4 text-xl text-white/60 font-light">
+                  <li>• Event management</li>
+                  <li>• Calendar integration</li>
+                  <li>• Smart reminders</li>
+                  <li>• Multiple calendars</li>
+                </ul>
+              </div>
+              <div className="flex-1 flex justify-center">
+                <div className="w-80 h-80 bg-gradient-to-br from-orange-500/20 to-orange-600/20 rounded-3xl border border-orange-500/30 flex items-center justify-center">
+                  <span className="text-8xl">📅</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Weather */}
+            <div className="flex flex-col lg:flex-row-reverse items-center gap-16">
+              <div className="flex-1">
+                <h3 className="text-5xl md:text-6xl font-bold mb-6 tracking-tight">
+                  Weather Updates
+                </h3>
+                <p className="text-2xl text-white/70 mb-8 font-light leading-relaxed">
+                  Get real-time weather information and forecasts. Plan your day with accurate weather data at your fingertips.
+                </p>
+                <ul className="space-y-4 text-xl text-white/60 font-light">
+                  <li>• Real-time weather</li>
+                  <li>• Daily forecasts</li>
+                  <li>• Location-based</li>
+                  <li>• Weather alerts</li>
+                </ul>
+              </div>
+              <div className="flex-1 flex justify-center">
+                <div className="w-80 h-80 bg-gradient-to-br from-sky-500/20 to-sky-600/20 rounded-3xl border border-sky-500/30 flex items-center justify-center">
+                  <span className="text-8xl">🌤️</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Habits */}
+            <div className="flex flex-col lg:flex-row items-center gap-16">
+              <div className="flex-1">
+                <h3 className="text-5xl md:text-6xl font-bold mb-6 tracking-tight">
+                  Habit Tracker
+                </h3>
+                <p className="text-2xl text-white/70 mb-8 font-light leading-relaxed">
+                  Build lasting habits and track your progress. Create positive routines and achieve your goals with consistency.
+                </p>
+                <ul className="space-y-4 text-xl text-white/60 font-light">
+                  <li>• Habit building</li>
+                  <li>• Progress tracking</li>
+                  <li>• Streak counting</li>
+                  <li>• Goal setting</li>
+                </ul>
+              </div>
+              <div className="flex-1 flex justify-center">
+                <div className="w-80 h-80 bg-gradient-to-br from-indigo-500/20 to-indigo-600/20 rounded-3xl border border-indigo-500/30 flex items-center justify-center">
+                  <span className="text-8xl">🎯</span>
                 </div>
               </div>
             </div>
           </div>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <a href="#features" className="px-10 py-4 bg-white/80 text-blue-700 rounded-xl text-xl font-bold shadow-lg hover:bg-blue-100 transition border border-blue-200 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-blue-400">See Features</a>
-          </div>
-        </section>
+        </div>
+      </section>
 
-        {/* Features Section */}
-        <section id="features" className="max-w-4xl w-full mb-20">
-          <h2 className="text-3xl font-bold text-gray-900 mb-8 text-center">Features</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            <div className="bg-white/80 rounded-xl shadow p-6 flex flex-col items-center">
-              <span className="bg-blue-100 text-blue-600 rounded-full p-3 mb-4">
-                <svg width="32" height="32" fill="none" viewBox="0 0 24 24"><path d="M6 3v18M18 3v18M3 6h18M3 18h18" stroke="#2563eb" strokeWidth="2" strokeLinecap="round"/></svg>
-              </span>
-              <h3 className="font-semibold text-lg mb-2">Customizable Widgets</h3>
-              <p className="text-gray-600">Add, remove, and arrange widgets for tasks, mood, finance, and more to create your perfect dashboard.</p>
-            </div>
-            <div className="bg-white/80 rounded-xl shadow p-6 flex flex-col items-center">
-              <span className="bg-green-100 text-green-600 rounded-full p-3 mb-4">
-                <svg width="32" height="32" fill="none" viewBox="0 0 24 24"><path d="M12 8v4l3 3" stroke="#16a34a" strokeWidth="2" strokeLinecap="round"/></svg>
-              </span>
-              <h3 className="font-semibold text-lg mb-2">Smart Insights</h3>
-              <p className="text-gray-600">Get personalized recommendations and insights based on your tracked data and habits.</p>
-            </div>
-            <div className="bg-white/80 rounded-xl shadow p-6 flex flex-col items-center">
-              <span className="bg-purple-100 text-purple-600 rounded-full p-3 mb-4">
-                <svg width="32" height="32" fill="none" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke="#7c3aed" strokeWidth="2"/><path d="M8 12l2 2 4-4" stroke="#7c3aed" strokeWidth="2" strokeLinecap="round"/></svg>
-              </span>
-              <h3 className="font-semibold text-lg mb-2">Secure & Private</h3>
-              <p className="text-gray-600">Your data is encrypted and private. Only you have access to your personal information.</p>
+      {/* Dashboard Preview - Apple Style */}
+      <section className="py-32 px-6 bg-white text-black">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-32">
+            <h2 className="text-6xl md:text-7xl font-bold mb-8 tracking-tight">
+              Beautiful Dashboard
+            </h2>
+            <p className="text-2xl md:text-3xl text-gray-600 max-w-3xl mx-auto font-light">
+              Your personal command center, designed with elegance and functionality in mind.
+            </p>
+          </div>
+
+          <div className="relative">
+            <div className="bg-black rounded-3xl p-12 border border-gray-800 shadow-2xl max-w-6xl mx-auto">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+                {/* Task Widget */}
+                <div className="bg-gray-900 rounded-2xl p-6 border border-gray-700">
+                  <div className="flex items-center justify-between mb-6">
+                    <h3 className="text-white font-semibold text-lg">Today's Tasks</h3>
+                    <div className="w-10 h-10 bg-blue-500/20 rounded-xl flex items-center justify-center">
+                      <span className="text-blue-400 text-lg">✓</span>
+                    </div>
+                  </div>
+                  <div className="space-y-4">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-5 h-5 border-2 border-blue-400 rounded"></div>
+                      <span className="text-white/80 text-sm">Complete project proposal</span>
+                    </div>
+                    <div className="flex items-center space-x-3">
+                      <div className="w-5 h-5 border-2 border-green-400 rounded bg-green-400"></div>
+                      <span className="text-white/50 text-sm line-through">Team meeting</span>
+                    </div>
+                    <div className="flex items-center space-x-3">
+                      <div className="w-5 h-5 border-2 border-purple-400 rounded"></div>
+                      <span className="text-white/80 text-sm">Review budget</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Mood Widget */}
+                <div className="bg-gray-900 rounded-2xl p-6 border border-gray-700">
+                  <div className="flex items-center justify-between mb-6">
+                    <h3 className="text-white font-semibold text-lg">Mood Today</h3>
+                    <div className="w-10 h-10 bg-purple-500/20 rounded-xl flex items-center justify-center">
+                      <span className="text-purple-400 text-xl">😊</span>
+                    </div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-6xl mb-4">😊</div>
+                    <p className="text-white/80 text-sm">Feeling great!</p>
+                    <div className="mt-4 flex justify-center space-x-2">
+                      {['😢', '😐', '😊', '😄'].map((mood, i) => (
+                        <div key={i} className={`w-8 h-8 rounded-lg flex items-center justify-center ${i === 2 ? 'bg-purple-500/20' : 'bg-gray-800'}`}>
+                          <span className="text-lg">{mood}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Calendar Widget */}
+                <div className="bg-gray-900 rounded-2xl p-6 border border-gray-700">
+                  <div className="flex items-center justify-between mb-6">
+                    <h3 className="text-white font-semibold text-lg">Upcoming</h3>
+                    <div className="w-10 h-10 bg-orange-500/20 rounded-xl flex items-center justify-center">
+                      <span className="text-orange-400 text-lg">📅</span>
+                    </div>
+                  </div>
+                  <div className="space-y-4">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-4 h-4 bg-orange-400 rounded-full"></div>
+                      <span className="text-white/80 text-sm">Team meeting</span>
+                    </div>
+                    <div className="flex items-center space-x-3">
+                      <div className="w-4 h-4 bg-blue-400 rounded-full"></div>
+                      <span className="text-white/80 text-sm">Doctor appointment</span>
+                    </div>
+                    <div className="flex items-center space-x-3">
+                      <div className="w-4 h-4 bg-green-400 rounded-full"></div>
+                      <span className="text-white/80 text-sm">Gym session</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Weather Widget */}
+                <div className="bg-gray-900 rounded-2xl p-6 border border-gray-700">
+                  <div className="flex items-center justify-between mb-6">
+                    <h3 className="text-white font-semibold text-lg">Weather</h3>
+                    <div className="w-10 h-10 bg-sky-500/20 rounded-xl flex items-center justify-center">
+                      <span className="text-sky-400 text-lg">🌤️</span>
+                    </div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-5xl mb-4">🌤️</div>
+                    <p className="text-white text-2xl font-semibold mb-2">72°F</p>
+                    <p className="text-white/60 text-sm mb-2">Partly Cloudy</p>
+                    <p className="text-white/40 text-xs">San Francisco</p>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
-        </section>
+        </div>
+      </section>
 
-        {/* How it Works Section */}
-        <section className="max-w-4xl w-full mb-20">
-          <h2 className="text-3xl font-bold text-gray-900 mb-8 text-center">How It Works</h2>
-          <ol className="space-y-6 text-lg text-gray-700">
-            <li><span className="font-bold text-blue-600">1.</span> Sign up and create your account.</li>
-            <li><span className="font-bold text-blue-600">2.</span> Subscribe to services for tasks, mood, finance, and more.</li>
-            <li><span className="font-bold text-blue-600">3.</span> Track your progress and get smart insights every day.</li>
-            <li><span className="font-bold text-blue-600">4.</span> Enjoy a more organized, productive, and mindful life!</li>
-          </ol>
-        </section>
+      {/* How It Works - Apple Style */}
+      <section id="how-it-works" className="py-32 px-6 bg-black">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-32">
+            <h2 className="text-6xl md:text-7xl font-bold mb-8 tracking-tight">
+              Get Started in Minutes
+            </h2>
+            <p className="text-2xl md:text-3xl text-white/60 max-w-3xl mx-auto font-light">
+              Simple setup, powerful results. Start organizing your life today.
+            </p>
+          </div>
 
-        {/* Testimonials Section */}
-        <section className="max-w-4xl w-full mb-20">
-          <h2 className="text-3xl font-bold text-gray-900 mb-8 text-center">What Our Users Say</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            <div className="bg-white/90 rounded-xl shadow p-6 flex flex-col items-center">
-              <img src="https://randomuser.me/api/portraits/men/32.jpg" alt="User 1" className="w-16 h-16 rounded-full mb-4 border-4 border-blue-100" />
-              <p className="text-gray-700 italic mb-2">“LifeHub helped me finally stay on top of my goals. The widgets are a game changer!”</p>
-              <span className="font-semibold text-blue-700">— Alex P.</span>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-16">
+            {[
+              {
+                step: '01',
+                title: 'Create Account',
+                description: 'Sign up with your email and create your personalized dashboard in seconds.',
+                icon: '👤'
+              },
+              {
+                step: '02',
+                title: 'Choose Your Services',
+                description: 'Select from tasks, mood tracking, finance management, notes, calendar, weather, and habits.',
+                icon: '⚙️'
+              },
+              {
+                step: '03',
+                title: 'Start Organizing',
+                description: 'Begin tracking your daily activities and watch your productivity soar.',
+                icon: '🚀'
+              }
+            ].map((item, index) => (
+              <div key={index} className="text-center">
+                <div className="w-32 h-32 bg-gradient-to-br from-blue-500/20 to-purple-500/20 rounded-full flex items-center justify-center text-5xl mb-8 mx-auto">
+                  {item.icon}
+                </div>
+                <div className="text-blue-400 font-bold text-lg mb-6">{item.step}</div>
+                <h3 className="text-3xl font-bold mb-6 text-white">{item.title}</h3>
+                <p className="text-xl text-white/60 leading-relaxed font-light">{item.description}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* CTA Section - Apple Style */}
+      <section className="py-32 px-6 bg-white text-black">
+        <div className="max-w-4xl mx-auto text-center">
+          <h2 className="text-6xl md:text-7xl font-bold mb-8 tracking-tight">
+            Ready to Transform Your Life?
+          </h2>
+          <p className="text-2xl md:text-3xl text-gray-600 mb-16 max-w-2xl mx-auto font-light">
+            Join thousands of users who have already organized their lives with LifeHub.
+          </p>
+          <Link 
+            href="/auth" 
+            className="inline-block px-16 py-6 bg-black text-white rounded-full text-2xl font-medium hover:bg-gray-900 transition-all duration-300 hover:scale-105"
+          >
+            Get Started Free
+          </Link>
+        </div>
+      </section>
+
+      {/* Footer - Apple Style */}
+      <footer className="py-16 px-6 border-t border-gray-800 bg-black">
+        <div className="max-w-7xl mx-auto">
+          <div className="flex flex-col md:flex-row items-center justify-between">
+            <div className="flex items-center space-x-3 mb-4 md:mb-0">
+              <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center shadow-sm">
+                <svg 
+                  viewBox="0 0 24 24" 
+                  className="w-5 h-5 text-white"
+                  fill="currentColor"
+                >
+                  <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+                </svg>
+              </div>
+              <span className="text-xl font-medium text-white tracking-tight">LifeHub</span>
             </div>
-            <div className="bg-white/90 rounded-xl shadow p-6 flex flex-col items-center">
-              <img src="https://randomuser.me/api/portraits/women/44.jpg" alt="User 2" className="w-16 h-16 rounded-full mb-4 border-4 border-green-100" />
-              <p className="text-gray-700 italic mb-2">“I love the mood tracker and finance tools. Everything is so easy and beautiful.”</p>
-              <span className="font-semibold text-green-700">— Priya S.</span>
-            </div>
-            <div className="bg-white/90 rounded-xl shadow p-6 flex flex-col items-center">
-              <img src="https://randomuser.me/api/portraits/men/65.jpg" alt="User 3" className="w-16 h-16 rounded-full mb-4 border-4 border-purple-100" />
-              <p className="text-gray-700 italic mb-2">“The insights and reminders keep me motivated every day. Highly recommend!”</p>
-              <span className="font-semibold text-purple-700">— Jordan L.</span>
+            <div className="flex items-center space-x-8 text-white/60">
+              <a href="#" className="hover:text-white transition-colors text-sm">Privacy</a>
+              <a href="#" className="hover:text-white transition-colors text-sm">Terms</a>
+              <a href="#" className="hover:text-white transition-colors text-sm">Support</a>
             </div>
           </div>
-        </section>
-
-        {/* Trust & Security Section */}
-        <section className="max-w-4xl w-full mb-20">
-          <h2 className="text-2xl font-bold text-gray-900 mb-6 text-center">Trusted & Secure</h2>
-          <div className="flex flex-col md:flex-row items-center justify-center gap-8">
-            <div className="flex items-center gap-3">
-              <svg className="w-8 h-8 text-blue-500" fill="none" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke="#2563eb" strokeWidth="2"/><path d="M8 12l2 2 4-4" stroke="#2563eb" strokeWidth="2" strokeLinecap="round"/></svg>
-              <span className="text-gray-700 font-semibold">End-to-End Encryption</span>
-            </div>
-            <div className="flex items-center gap-3">
-              <svg className="w-8 h-8 text-green-500" fill="none" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="4" stroke="#16a34a" strokeWidth="2"/><path d="M8 12l2 2 4-4" stroke="#16a34a" strokeWidth="2" strokeLinecap="round"/></svg>
-              <span className="text-gray-700 font-semibold">Private by Design</span>
-            </div>
-            <div className="flex items-center gap-3">
-              <svg className="w-8 h-8 text-purple-500" fill="none" viewBox="0 0 24 24"><path d="M12 2l7 7-7 7-7-7 7-7z" stroke="#a21caf" strokeWidth="2"/><path d="M12 9v4" stroke="#a21caf" strokeWidth="2" strokeLinecap="round"/></svg>
-              <span className="text-gray-700 font-semibold">Trusted by 10,000+ users</span>
-            </div>
+          <div className="mt-8 pt-8 border-t border-gray-800 text-center text-white/40">
+            <p className="text-sm">&copy; 2024 LifeHub. All rights reserved. Made with ❤️ for better productivity.</p>
           </div>
-        </section>
-      </main>
-      {/* Sticky CTA */}
-      <div className="fixed bottom-6 right-6 z-50">
-        <Link href="/auth" className="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-full text-lg font-bold shadow-lg hover:from-blue-700 hover:to-purple-700 transition-all duration-200 hover:scale-105 focus:outline-none focus:ring-2 focus:ring-blue-400">
-          Start Your Journey →
-        </Link>
-      </div>
-      <footer className="w-full text-center text-gray-500 py-6 border-t border-gray-200 bg-white/70 mt-auto">
-        &copy; 2024 LifeHub. All rights reserved.
+        </div>
       </footer>
     </div>
   );
